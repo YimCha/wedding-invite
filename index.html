@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v5 · 2026-10-16 遇见配乐版。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v6 · 2026-10-16 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -372,7 +372,7 @@ const CONFIG = {
   address: "详细地址待定",          // TODO
   city: "上饶",
   mapKeyword: "",                  // 导航搜索关键词，留空则用 venue
-  music: "",                       // 结局邀请函背景音乐，如 "bgm.mp3"（建议《爱就一个字》）；游戏内自带 8-bit 配乐，无需文件
+  music: "bgm.m4a",                 // 全程背景音乐：《遇见》钢琴纯音乐版（与本文件同目录；留空则回退到内置八音盒引擎）
 
   /* --- 结局邀请函照片（AI 占位，可换真实照片路径） --- */
   heroImg: img("Editorial wedding film photography, young asian couple back view walking hand in hand on open road at golden dusk, soft warm backlight, 35mm film grain, muted earthy tones, minimalist timeless romantic mood, no text"),
@@ -577,16 +577,30 @@ const Chip = {
   }
 };
 let userMuted = false, gameStarted = false;
+/* 有音乐文件（CONFIG.music）时全程用它做 BGM（游戏+邀请函不断档）；没有时用内置八音盒引擎 */
+function playBgm() {
+  const bgm = $("#bgm");
+  if (!bgm.src) bgm.src = CONFIG.music;
+  bgm.loop = true; bgm.volume = .85;
+  bgm.play().catch(() => {});
+}
 function startGameMusic() {
   gameStarted = true;
-  if (!userMuted) Chip.start();
+  if (CONFIG.music) { if (!userMuted) playBgm(); }
+  else if (!userMuted) Chip.start();
   $("#music-btn").classList.add("show");
-  $("#music-btn").classList.toggle("playing", Chip.on);
+  $("#music-btn").classList.toggle("playing", CONFIG.music ? !$("#bgm").paused : Chip.on);
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { Chip.stop(); $("#music-btn").classList.remove("playing"); }
-  else if (gameStarted && !userMuted && $("#invite").classList.contains("hide")) {
-    Chip.start(); $("#music-btn").classList.add("playing");
+  const bgm = $("#bgm");
+  if (document.hidden) {
+    Chip.stop();
+    if (CONFIG.music && !bgm.paused) { bgm.pause(); bgm.dataset.wasPlaying = "1"; }
+    $("#music-btn").classList.remove("playing");
+  } else if (gameStarted && !userMuted) {
+    if (CONFIG.music) { if (bgm.dataset.wasPlaying) { playBgm(); delete bgm.dataset.wasPlaying; } }
+    else if ($("#invite").classList.contains("hide")) { Chip.start(); }
+    if (CONFIG.music || Chip.on) $("#music-btn").classList.add("playing");
   }
 });
 
@@ -1685,21 +1699,18 @@ function renderFinaleExtras() {
 }
 function showFinale() {
   Chip.stop();
-  $("#music-btn").classList.remove("playing");
+  if (!CONFIG.music) $("#music-btn").classList.remove("playing");   // 有 BGM 文件时音乐不断档
   scene = SCENES.finale;
   renderFinaleExtras();
   $("#finale").classList.remove("hide");
 }
 function showInvite() {
   Chip.stop();
-  $("#music-btn").classList.remove("playing");
   if (CONFIG.music) {
-    const bgm = $("#bgm");
-    bgm.src = CONFIG.music;
-    bgm.play().catch(() => {});
+    playBgm();                                                      // BGM 从游戏延续到邀请函，不切歌
     $("#music-btn").classList.add("show", "playing");
   } else {
-    $("#music-btn").classList.remove("show");
+    $("#music-btn").classList.remove("show", "playing");
   }
   scene = SCENES.finale;
   $("#finale").classList.add("hide");
@@ -1842,19 +1853,17 @@ $("#rsvp-copy").addEventListener("click", async () => {
   showToast("已复制，请把回执发给我们");
 });
 
-/* 音乐按钮：游戏中控制 8-bit 配乐，邀请函中控制背景音乐 mp3 */
+/* 音乐按钮：有 BGM 文件时全程控制它；否则控制内置八音盒引擎 */
 $("#music-btn").addEventListener("click", () => {
-  const inInvite = !$("#invite").classList.contains("hide");
-  if (inInvite) {
-    if (!CONFIG.music) return;
+  if (CONFIG.music) {
     const bgm = $("#bgm"), btn = $("#music-btn");
-    if (bgm.paused) { bgm.play().catch(() => {}); btn.classList.add("playing"); }
-    else { bgm.pause(); btn.classList.remove("playing"); }
-  } else {
-    userMuted = !userMuted;
-    if (Chip.on) { Chip.stop(); $("#music-btn").classList.remove("playing"); }
-    else { Chip.start(); $("#music-btn").classList.add("playing"); }
+    if (bgm.paused) { playBgm(); btn.classList.add("playing"); userMuted = false; }
+    else { bgm.pause(); btn.classList.remove("playing"); userMuted = true; }
+    return;
   }
+  userMuted = !userMuted;
+  if (Chip.on) { Chip.stop(); $("#music-btn").classList.remove("playing"); }
+  else { Chip.start(); $("#music-btn").classList.add("playing"); }
 });
 
 /* 启动 */
