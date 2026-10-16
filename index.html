@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v6 · 2026-10-16 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v7 · BGM 预加载+响度均衡 · 2026-10-16 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1867,6 +1867,13 @@ $("#music-btn").addEventListener("click", () => {
 });
 
 /* 启动 */
+/* 预加载 BGM：页面打开就开始缓冲，点「开始游戏」时音乐即刻响起，不用等下载 */
+if (CONFIG.music) {
+  const bgm = $("#bgm");
+  bgm.preload = "auto";
+  bgm.src = CONFIG.music;
+  bgm.load();
+}
 go("title");
 </script>
 </body>
