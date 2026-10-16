@@ -517,22 +517,34 @@ const sfx = {
   tear: () => [784, 659, 523].forEach((f, i) => setTimeout(() => bell(f, .9, .08), i * 170))
 };
 
-/* 配乐：八音盒 + 暖垫 + 低音，卡农式和弦进行，五个场景五种情绪（程序生成，无需音乐文件） */
+/* 配乐：八音盒 + 暖垫 + 低音，旋律为《遇见》副歌（程序演奏，无需音乐文件） */
 const Chip = {
   on: false, timer: null, nextT: 0, step: 0, ac: null, moodName: "title",
   MOODS: {
-    title: { bpm: 66, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 1 },   // 标题：静谧
-    day:   { bpm: 84, pad: 0, bell: 1, bass: 1, arp: 1, oct: 12, every: 1 },  // 白天：轻快
-    night: { bpm: 62, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 2 },   // 夜晚：安静
-    ride:  { bpm: 112, pad: 0, bell: 0, bass: 1, arp: 1, oct: 0, every: 4 },  // 雨夜赶路：急促
-    love:  { bpm: 56, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 1 }    // 求婚：深情
+    title: { bpm: 66, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, sparse: 0 },   // 标题：静谧
+    day:   { bpm: 88, pad: 0, bell: 1, bass: 1, arp: 1, oct: 12, sparse: 0 },  // 白天：轻快
+    night: { bpm: 62, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, sparse: 1 },   // 夜晚：安静（旋律隔小节出现）
+    ride:  { bpm: 112, pad: 0, bell: 0, bass: 1, arp: 1, oct: 0, sparse: 0 },  // 雨夜赶路：急促
+    love:  { bpm: 60, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, sparse: 0 }    // 求婚：深情
   },
-  /* 卡农进行：D - A - Bm - F#m - G - D - G - A */
+  /* 《遇见》副歌和声（C 大调）：G - Em - Am - C - G - C - F - G */
   CHORDS: [
-    [50, 57, 62, 66], [45, 52, 57, 61], [47, 54, 59, 62], [42, 49, 54, 57],
-    [43, 50, 55, 59], [38, 45, 50, 54], [43, 50, 55, 59], [45, 52, 57, 61]
+    [55, 62, 67, 71], [52, 59, 64, 67], [45, 52, 57, 60], [48, 55, 60, 64],
+    [55, 62, 67, 71], [48, 55, 60, 64], [41, 48, 53, 57], [55, 62, 67, 71]
   ],
-  MELODY: [78, 76, 74, 73, 71, 69, 71, 73],   // F#5 E5 D5 C#5 B4 A4 B4 C#5，一小节一音
+  /* 《遇见》副歌旋律（八分音符网格，0=休止）：
+     我遇见谁 会有怎样的对白 / 我等的人 他在多远的未来
+     我听见风 来自地铁和人海 / 我排着队 拿着爱的号码牌 */
+  MELODY: [
+    67,67,69,71, 72,72,71,72,
+    71,69,67,67, 69,67,67,67,
+    60,62,64,65, 65,64,65,67,
+    67,72,74,74, 76,76,76,76,
+    67,69,71,72, 72,71,72,72,
+    74,72,74,74, 76,76,79,79,
+    60,62,64,65, 64,65, 0, 0,
+    64,64,62,62, 60,59,60,60
+  ],
   mood(name) { this.moodName = name; },
   start() {
     const ac = audio(); if (!ac || this.on) return;
@@ -545,14 +557,17 @@ const Chip = {
     const m = this.MOODS[this.moodName] || this.MOODS.title;
     const stepDur = 60 / m.bpm / 2;
     while (this.nextT < this.ac.currentTime + .25) {
-      const bar = Math.floor(this.step / 8) % 8, sub = this.step % 8;
+      const i = this.step % 64, bar = Math.floor(this.step / 8) % 8, sub = this.step % 8;
       const ch = this.CHORDS[bar], t = this.nextT;
       if (sub === 0) {
         if (m.pad) padChord(ch, stepDur * 8.4, t);
         if (m.bass) bassNote(ch[0] - 12, stepDur * 7, t);
-        if (m.bell && bar % m.every === 0) bell(midiF(this.MELODY[bar] + m.oct), 1.8, .07, t);
       }
-      if (m.arp) bell(midiF(ch[1 + (this.step % 3)] + 12), .55, .026, t);   // 轻柔琶音，替代方波节奏
+      const mel = this.MELODY[i];
+      if (m.bell && mel && !(m.sparse && bar % 2 === 1)) {
+        bell(midiF(mel + m.oct), stepDur * 2.2, .058, t);
+      }
+      if (m.arp) bell(midiF(ch[1 + (this.step % 3)] + 12), .55, .024, t);
       this.nextT += stepDur; this.step++;
     }
   }
