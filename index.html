@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<!--
+  婚礼邀请函 · 像素风恋爱闯关小游戏（单文件 H5）
+  流程：标题 → L1 招新找名字 → L2 食堂送伞 → L3 雨夜摩托 → L4 求婚 → 结局邀请函
+  改文案/婚期/酒店/照片：搜索 "★ 改这里就够了"
+
+  本版特性（2026-10-16 移动端重构）：
+  - 触控改为 touchstart/touchend + 鼠标双通道，微信安卓/iOS 全兼容
+  - touchmove/contextmenu 全部 preventDefault：微信下拉刷新、长按菜单不再打断游戏
+  - 画布高度自适应长屏手机，满屏无黑边
+  - 每关掉落"回忆碎片"，通关画面拼成完整记忆 + 战绩统计
+  部署：整个文件夹丢到 Vercel / GitHub Pages 即可
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#141a28">
+<meta name="format-detection" content="telephone=no">
+<title>十年副本 · 陈家昊 & 杨晓燕</title>
+<link rel="preconnect" href="https://fonts.loli.net">
+<link href="https://fonts.loli.net/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f5f0e6; --paper2:#ece4d4; --ink:#2b2722; --muted:#8a8072;
+  --rust:#a34a2e; --hair:rgba(43,39,34,.28); --hair-soft:rgba(43,39,34,.14);
+  --night:#141a28;
+  --serif-en:"Cormorant Garamond","Didot","Times New Roman",serif;
+  --serif-zh:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button,a{touch-action:manipulation;font-family:var(--serif-zh)}
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--night);color:var(--ink);font-family:var(--serif-zh);overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
+
+/* ---------- 舞台 ---------- */
+#app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--night)}
+#stage{position:relative;touch-action:none}
+#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:var(--night);box-shadow:0 0 60px rgba(0,0,0,.5);touch-action:none}
+#ui{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#ui>*{pointer-events:none}
+#ui button{pointer-events:auto}
+
+/* HUD */
+#hud{position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:70%}
+.chip{background:rgba(245,240,230,.92);border:1px solid var(--hair);color:var(--ink);font-size:12px;letter-spacing:.15em;padding:5px 12px}
+#hearts{color:var(--rust);font-size:14px;letter-spacing:2px;display:none}
+#hearts.show{display:inline-block}
+#shard-chip{font-size:13px;letter-spacing:2px}
+
+#skip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;background:rgba(245,240,230,.92);border:1px solid var(--hair);color:var(--muted);font-size:11px;letter-spacing:.2em;padding:8px 14px;cursor:pointer}
+#skip:active{background:var(--ink);color:var(--paper)}
+
+/* 操作提示 */
+#hint{position:absolute;left:50%;bottom:34%;transform:translateX(-50%);background:rgba(20,26,40,.78);color:#f5f0e6;font-size:13px;letter-spacing:.2em;padding:9px 18px;border:1px solid rgba(245,240,230,.35);white-space:nowrap;opacity:0;transition:opacity .5s}
+#hint.show{opacity:1}
+
+/* 导航语音气泡 */
+#nav-bubble{position:absolute;top:64px;left:50%;transform:translateX(-50%);max-width:78%;background:#f5f0e6;color:#2b2722;font-size:12px;line-height:1.6;padding:9px 14px;border:1px solid var(--ink);box-shadow:3px 3px 0 rgba(0,0,0,.4);opacity:0;transition:opacity .4s;letter-spacing:.05em}
+#nav-bubble::before{content:"◈ 导航 ";color:var(--rust);letter-spacing:.1em}
+#nav-bubble.show{opacity:1}
+
+/* 对话框 */
+#dlg{position:absolute;left:10px;right:10px;bottom:14px;background:rgba(245,240,230,.96);border:2px solid var(--ink);box-shadow:4px 4px 0 rgba(0,0,0,.45);padding:12px 14px 16px;opacity:0;transform:translateY(8px);transition:.25s}
+#dlg.show{opacity:1;transform:none}
+#dlg-who{font-size:12px;letter-spacing:.25em;margin-bottom:4px;font-weight:500}
+#dlg-txt{font-size:14px;line-height:1.85;min-height:52px;letter-spacing:.03em;white-space:pre-line}
+#dlg-next{position:absolute;right:12px;bottom:6px;font-size:11px;color:var(--rust);animation:bob 1s ease-in-out infinite}
+#dlg.no-next #dlg-next{display:none}
+@keyframes bob{50%{transform:translateY(3px)}}
+
+/* 进度条（L4 长按读信） */
+#l4bar{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;width:70%;height:10px;background:rgba(245,240,230,.35);border:1px solid rgba(245,240,230,.7);display:none}
+#l4bar.show{display:block}
+#l4bar i{display:block;height:100%;width:0;background:var(--rust)}
+
+/* 全屏遮罩（标题/通关） */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#f5f0e6;padding:24px}
+#title,#finale{background:rgba(10,14,24,.42)}
+.t-eyebrow{font-family:var(--serif-en);letter-spacing:.5em;text-indent:.5em;font-size:11px;opacity:.8}
+.t-main{margin-top:16px;font-size:clamp(34px,9vw,52px);font-weight:600;letter-spacing:.14em;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.t-sub{margin-top:14px;font-size:14px;letter-spacing:.2em;opacity:.9}
+.t-names{margin-top:6px;font-size:13px;letter-spacing:.2em;opacity:.75;font-family:var(--serif-en)}
+.t-btn{margin-top:36px;background:#f5f0e6;color:#2b2722;border:none;font-size:14px;letter-spacing:.4em;text-indent:.4em;padding:14px 34px;cursor:pointer;box-shadow:4px 4px 0 rgba(0,0,0,.4)}
+.t-btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(0,0,0,.4)}
+.t-links{margin-top:22px;display:flex;gap:18px}
+.t-link{background:none;border:none;color:rgba(245,240,230,.75);font-size:12px;letter-spacing:.2em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.t-tip{margin-top:26px;font-size:11px;letter-spacing:.25em;opacity:.55}
+.hide{display:none !important}
+
+/* 通关碎片 + 战绩 */
+.fin-shards{margin-top:26px;display:flex;gap:14px}
+.f-shard{width:48px;height:48px;border:1px solid rgba(245,240,230,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;opacity:.25;background:rgba(245,240,230,.08)}
+.f-shard.got{opacity:1;background:rgba(232,201,160,.18);border-color:#e8c9a0;box-shadow:0 0 12px rgba(232,201,160,.35)}
+.t-stats{margin-top:16px;font-size:11px;letter-spacing:.15em;opacity:.7;line-height:2;max-width:320px}
+
+/* ---------- 结局邀请函 ---------- */
+#invite{position:fixed;inset:0;background:var(--paper);color:var(--ink);overflow-y:auto;z-index:50;-webkit-overflow-scrolling:touch}
+#invite section{padding:72px 28px}
+
+/* 信封（拆信环节） */
+#envelope-sec{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#efe7d2,#e5d8bc);transition:opacity .7s ease}
+#envelope-sec.opened{opacity:0;pointer-events:none}
+.env-tip-top{font-size:13px;letter-spacing:.4em;text-indent:.4em;color:var(--muted);margin-bottom:46px}
+.envelope{position:relative;width:min(320px,86vw);height:208px;background:#e9dab9;border:1px solid rgba(43,39,34,.28);box-shadow:0 16px 34px rgba(43,39,34,.22);cursor:pointer}
+.env-flap{position:absolute;left:-1px;right:-1px;top:-1px;height:106px;background:#dcc9a2;border:1px solid rgba(43,39,34,.28);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top center;transition:transform .9s ease;z-index:2}
+#envelope-sec.opened .env-flap{transform:rotateX(178deg);background:#cfb98d}
+.seal{position:absolute;left:50%;top:104px;transform:translate(-50%,-50%);width:68px;height:68px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#c25a3e,#a34a2e 72%);color:#f8ecd8;border:3px double rgba(248,236,216,.6);font-size:26px;cursor:pointer;z-index:3;box-shadow:0 4px 12px rgba(43,39,34,.4);animation:sealpulse 2.2s ease-in-out infinite;font-family:var(--serif-zh)}
+#envelope-sec.opened .seal{opacity:0;transition:.3s}
+@keyframes sealpulse{50%{transform:translate(-50%,-50%) scale(1.09)}}
+.env-to{position:absolute;left:0;right:0;bottom:20px;text-align:center;font-size:16px;letter-spacing:.08em;color:#5a4a34;z-index:1}
+.env-to input{border:none;border-bottom:1px dashed rgba(43,39,34,.5);background:transparent;text-align:center;font:inherit;color:#8a3020;width:126px;outline:none;padding:2px 2px}
+.env-deco{position:absolute;top:18px;left:18px;font-size:11px;letter-spacing:.3em;color:rgba(43,39,34,.4);z-index:1;writing-mode:vertical-rl}
+.env-tip{margin-top:40px;font-size:12px;letter-spacing:.25em;color:var(--muted);text-align:center;line-height:2}
+
+/* 信纸主体（拆开后才出现） */
+#letter-body{display:none}
+#letter-body.show{display:block;animation:letterIn .9s ease both}
+@keyframes letterIn{from{opacity:0;transform:translateY(34px)}}
+.letter .salute{text-align:left;font-size:17px;margin-bottom:.8em;letter-spacing:.05em}
+.letter .sign-names{margin-top:22px;text-align:right;letter-spacing:.2em;color:var(--ink)}
+
+/* 十年回忆邮票 */
+.stamps{display:flex;gap:16px;overflow-x:auto;padding:4px 2px 16px;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}
+.stamps::-webkit-scrollbar{display:none}
+.stamp{flex:0 0 auto;width:112px;background:#fdfaf2;border:1px solid var(--hair);outline:2px dashed rgba(43,39,34,.32);outline-offset:-7px;padding:14px 8px 12px;text-align:center}
+.stamp .ico{font-size:30px;line-height:1}
+.stamp .yr{font-family:var(--serif-en);font-size:10px;letter-spacing:.18em;color:var(--rust);margin-top:9px}
+.stamp .cap{margin-top:5px;font-size:11px;line-height:1.7;color:#6a6156}
+
+/* 新人彩蛋 */
+#egg-sec{text-align:center;padding:48px 28px 8px}
+.egg-hint{display:inline-block;background:none;border:none;color:var(--muted);font-size:12px;letter-spacing:.2em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+#egg-lock{margin:22px auto 0;max-width:300px}
+#egg-lock .btn{margin-top:14px}
+#egg-page{margin:28px auto 0;max-width:430px;background:#141a28;color:#f5f0e6;padding:40px 28px;line-height:2.3;font-size:14.5px}
+#egg-page .heart{color:#c96a7e}
+.sec-head{display:flex;align-items:center;gap:18px;margin-bottom:44px}
+.sec-head::before,.sec-head::after{content:"";flex:1;height:1px;background:var(--hair-soft)}
+.sec-head .en{font-family:var(--serif-en);font-style:italic;font-size:13px;letter-spacing:.3em;color:var(--rust);white-space:nowrap}
+.sec-head .zh{font-size:15px;letter-spacing:.4em;text-indent:.4em;font-weight:400;white-space:nowrap}
+.i-hero{position:relative;min-height:72vh;display:flex;align-items:flex-end;overflow:hidden}
+.i-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--paper2)}
+.i-hero-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(28,22,16,.25),rgba(28,22,16,.05) 38%,rgba(28,22,16,.6))}
+.i-hero-c{position:relative;z-index:1;width:100%;text-align:center;color:#f6f1e6;padding:0 24px 56px}
+.i-eyebrow{font-family:var(--serif-en);letter-spacing:.5em;text-indent:.5em;font-size:11px;opacity:.85}
+.i-names{margin-top:14px;font-size:clamp(36px,10vw,56px);font-weight:500;letter-spacing:.06em}
+.i-names .amp{font-family:var(--serif-en);font-style:italic;font-weight:400;color:#e8c9a0;margin:0 10px}
+.i-date{margin-top:12px;font-family:var(--serif-en);font-size:14px;letter-spacing:.28em;opacity:.92}
+.i-cd{margin:24px auto 0;display:flex;justify-content:center}
+.i-cd .cell{width:58px;padding:8px 0 6px;border-left:1px solid rgba(246,241,230,.28)}
+.i-cd .cell:first-child{border-left:none}
+.i-cd .n{font-family:var(--serif-en);font-size:24px;font-weight:500}
+.i-cd .l{font-size:10px;letter-spacing:.3em;text-indent:.3em;opacity:.75;margin-top:2px}
+.orn{font-family:var(--serif-en);font-style:italic;font-size:24px;color:var(--rust);text-align:center;margin-bottom:30px}
+.letter{max-width:520px;margin:0 auto;text-align:center;font-size:15px;line-height:2.3}
+.letter p+p{margin-top:1em}
+.letter .sign{margin-top:28px;letter-spacing:.25em;color:var(--rust)}
+.i-info{max-width:460px;margin:0 auto;text-align:center;border:1px solid var(--hair);padding:44px 26px;position:relative}
+.i-info::after{content:"";position:absolute;inset:6px;border:1px solid var(--hair-soft);pointer-events:none}
+.i-den{font-family:var(--serif-en);font-size:36px;font-weight:500;letter-spacing:.08em}
+.i-dzh{margin-top:8px;font-size:13px;letter-spacing:.2em;color:var(--muted)}
+.i-venue{margin-top:30px;font-size:20px;font-weight:500;letter-spacing:.14em}
+.i-addr{margin-top:6px;font-size:13px;color:var(--muted)}
+.btns{margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 28px;border:1px solid var(--ink);color:var(--ink);font-size:12px;letter-spacing:.32em;text-indent:.32em;text-decoration:none;background:transparent;transition:.3s;cursor:pointer}
+.btn:active{background:var(--ink);color:var(--paper)}
+.btn.solid{background:var(--ink);color:var(--paper)}
+.btn.solid:active{background:var(--rust);border-color:var(--rust)}
+.rsvp-box{max-width:460px;margin:0 auto;text-align:center}
+.rsvp-tip{font-size:13.5px;color:var(--muted);margin-bottom:26px}
+.field{display:flex;border:1px solid var(--hair)}
+.field input{flex:1;background:transparent;border:none;outline:none;padding:14px 16px;font:inherit;font-size:15px;color:var(--ink)}
+.field input::placeholder{color:#b3a996}
+.toggle{display:flex;border:1px solid var(--hair);margin-top:12px}
+.toggle button{flex:1;padding:13px 0;background:transparent;border:none;font:inherit;font-size:14px;letter-spacing:.3em;text-indent:.3em;color:var(--muted);cursor:pointer}
+.toggle button.sel{background:var(--ink);color:var(--paper)}
+.stepper{display:flex;align-items:center;justify-content:center;border:1px solid var(--hair);margin-top:12px}
+.stepper button{width:56px;padding:12px 0;background:transparent;border:none;font-size:18px;color:var(--ink);cursor:pointer}
+.stepper .num{width:56px;text-align:center;font-size:18px;font-family:var(--serif-en)}
+.stepper .unit{font-size:12px;color:var(--muted);margin-right:-30px;margin-left:32px}
+.rsvp-box .btn.solid{margin-top:22px;width:100%}
+.i-foot{text-align:center;padding:80px 28px 96px}
+.i-foot .mono{font-family:var(--serif-en);font-style:italic;font-size:32px;color:var(--rust)}
+.i-foot .quote{margin-top:18px;font-size:14px;letter-spacing:.3em;text-indent:.3em}
+.i-foot .replay{margin-top:22px;background:none;border:none;color:var(--muted);font-size:11px;letter-spacing:.25em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:10%;transform:translateX(-50%) translateY(10px);background:var(--ink);color:var(--paper);font-size:13px;letter-spacing:.15em;padding:11px 22px;opacity:0;pointer-events:none;transition:.4s;z-index:99;white-space:nowrap}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#music-btn{position:fixed;top:calc(58px + env(safe-area-inset-top));right:14px;z-index:80;width:40px;height:40px;border-radius:50%;border:1px solid var(--hair);background:rgba(245,240,230,.85);display:none;align-items:center;justify-content:center;cursor:pointer}
+#music-btn.show{display:flex}
+#music-btn .disc{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--ink);position:relative}
+#music-btn .disc::after{content:"";position:absolute;top:50%;left:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--ink)}
+#music-btn.playing .disc{animation:spin 5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#dlg-next{animation:none}}
+</style>
+</head>
+<body class="playing">
+
+<div id="app">
+  <div id="stage">
+  <canvas id="cv" width="216" height="384"></canvas>
+
+  <div id="ui">
+    <div id="hud"><span class="chip" id="lv-chip">十年副本</span><span class="chip hide" id="dist"></span><span id="hearts"></span><span class="chip hide" id="shard-chip"></span></div>
+    <button id="skip">跳过游戏 »</button>
+    <div id="nav-bubble"></div>
+    <div id="hint"></div>
+    <div id="l4bar"><i></i></div>
+    <div id="dlg"><div id="dlg-who"></div><div id="dlg-txt"></div><div id="dlg-next">▼</div></div>
+
+    <!-- 标题画面 -->
+    <div id="title" class="screen">
+      <div class="t-eyebrow">A WEDDING QUEST</div>
+      <div class="t-main">十年副本</div>
+      <div class="t-sub">一场需要通关才能拆开的婚礼邀请函</div>
+      <div class="t-names" id="t-names">CHEN &amp; YANG</div>
+      <button class="t-btn" id="btn-start">开 始 游 戏</button>
+      <div class="t-links hide" id="t-links">
+        <button class="t-link" id="btn-continue">继续上次的进度</button>
+        <button class="t-link" id="btn-restart">从头再来</button>
+      </div>
+      <div class="t-tip">约 4 分钟 · 共 5 个小关卡 · 长辈可以直接跳过</div>
+    </div>
+
+    <!-- 通关画面 -->
+    <div id="finale" class="screen hide">
+      <div class="t-eyebrow">QUEST CLEAR</div>
+      <div class="t-main" style="font-size:clamp(28px,7vw,40px)">通关，但没完全通关</div>
+      <div class="t-sub" style="max-width:280px;line-height:2">游戏里的五关都打完了。<br>现实中还有最后一关——<br><b style="color:#e8c9a0">亲自到场</b>。</div>
+      <div class="fin-shards" id="fin-shards"></div>
+      <div class="t-stats" id="fin-stats"></div>
+      <button class="t-btn" id="btn-invite">查看婚礼邀请函</button>
+      <div class="t-links"><button class="t-link" id="btn-replay">再玩一遍</button></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- 结局邀请函 -->
+<div id="invite" class="hide">
+  <!-- 拆信环节 -->
+  <section id="envelope-sec">
+    <div class="env-tip-top">一封信，正在等你拆开</div>
+    <div class="envelope" id="envelope">
+      <div class="env-deco">见字如面</div>
+      <div class="env-flap"></div>
+      <button class="seal" id="seal">囍</button>
+      <div class="env-to">致 <input id="guest-name" maxlength="14" placeholder="亲爱的你" autocomplete="off"> ：收</div>
+    </div>
+    <div class="env-tip">可以先写下你的称呼，这封信就会变成写给你的<br>然后点一点火漆印，拆开它</div>
+  </section>
+
+  <!-- 信纸主体 -->
+  <div id="letter-body">
+  <section>
+    <div class="orn">&amp;</div>
+    <div class="letter">
+      <p class="salute">亲爱的 <span id="letter-name">你</span>：</p>
+      <p>2016 年秋天，我们在一叠辩论队申请书里认识了彼此——他多看了两眼她的名字，而面试那天，她其实也注意到了他。</p>
+      <p>后来的十年里，有一把故意没带的伞，有一个路灯下谁也不提回家的夜晚，有一场很大的雨，和摩托车的后座。</p>
+      <p>这些故事，有些你在场，有些你听过我们提起。现在，最后一段故事，想请你亲眼来见证。</p>
+      <p class="sign"><span id="letter-date"></span>，我们要结婚了。<br>这封信，想当面交给你——请你来。</p>
+      <p class="sign-names">—— 陈家昊 &amp; 杨晓燕</p>
+    </div>
+  </section>
+
+  <div class="i-hero">
+    <img class="i-hero-img" id="i-hero-img" alt="">
+    <div class="i-hero-shade"></div>
+    <div class="i-hero-c">
+      <div class="i-eyebrow">THE WEDDING OF</div>
+      <div class="i-names" id="i-names"></div>
+      <div class="i-date" id="i-date"></div>
+      <div class="i-cd" id="i-cd"></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="en">Ten Years</span><span class="zh">十年邮票</span></div>
+    <div class="stamps">
+      <div class="stamp"><div class="ico">📄</div><div class="yr">2016 · 秋</div><div class="cap">多看了两眼的<br>申请书</div></div>
+      <div class="stamp"><div class="ico">☂️</div><div class="yr">2016 · 秋</div><div class="cap">故意没带的<br>那把伞</div></div>
+      <div class="stamp"><div class="ico">🌙</div><div class="yr">2016.11.6</div><div class="cap">路灯下的<br>两个影子</div></div>
+      <div class="stamp"><div class="ico">🏍️</div><div class="yr">一个雨夜</div><div class="cap">大雨里的<br>后座</div></div>
+      <div class="stamp"><div class="ico">💍</div><div class="yr">2026</div><div class="cap">她说<br>愿意</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="en">Invitation</span><span class="zh">诚邀莅临</span></div>
+    <div class="i-info">
+      <div class="i-den" id="i-den"></div>
+      <div class="i-dzh" id="i-dzh"></div>
+      <div class="i-venue" id="i-venue"></div>
+      <div class="i-addr" id="i-addr"></div>
+      <div class="btns">
+        <a class="btn" id="i-nav" target="_blank" rel="noopener">一键导航</a>
+        <a class="btn" id="i-ics" href="#">添加到日历</a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="en">R.S.V.P</span><span class="zh">敬候回音</span></div>
+    <div class="rsvp-box">
+      <p class="rsvp-tip">请告诉我们您是否出席，我们会一直等您的答复<br><span style="font-size:12px">（填上称呼，信纸抬头就会变成你的名字）</span></p>
+      <div class="field"><input id="rsvp-name" maxlength="20" placeholder="您的称呼（如：张叔叔一家）"></div>
+      <div class="toggle">
+        <button id="att-yes" class="sel">如约出席</button>
+        <button id="att-no">遗憾缺席</button>
+      </div>
+      <div class="stepper">
+        <button id="cnt-minus">–</button>
+        <div class="num" id="cnt-num">2</div>
+        <span class="unit">位</span>
+        <button id="cnt-plus">＋</button>
+      </div>
+      <button class="btn solid" id="rsvp-copy">生成回执并复制</button>
+    </div>
+  </section>
+
+  <section id="egg-sec">
+    <button class="egg-hint" id="egg-hint">如果拆开这封信的，是我们俩自己 →</button>
+    <div id="egg-lock" class="hide">
+      <div class="field"><input id="egg-ans" maxlength="10" inputmode="numeric" placeholder="我们在一起的日子（月日，如 1224）"></div>
+      <button class="btn" id="egg-unlock">打开</button>
+    </div>
+    <div id="egg-page" class="hide">
+      <p>十年前的那个晚上，路灯把两个影子拉得很长。</p>
+      <p>十年后的今天，房子、沙发、午后的阳光——想过的日子，都在路上了。</p>
+      <p>谢谢你。<br>从一开始，就愿意。</p>
+      <p class="heart" style="margin-top:18px;font-size:20px">♥</p>
+    </div>
+  </section>
+
+  <footer class="i-foot">
+    <div class="mono">&amp;</div>
+    <div class="quote">期待与您，共赴这一场欢喜。</div>
+    <button class="replay" id="btn-replay2">← 重新玩一遍游戏</button>
+  </footer>
+  </div>
+</div>
+
+<button id="music-btn" aria-label="播放音乐"><span class="disc"></span></button>
+<audio id="bgm" loop preload="none"></audio>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   ★ 改这里就够了 ★
+   - 新娘名字、婚期、酒店：直接改下面几行
+   - 求婚词、搞笑台词、导航语音：都在下面的文案区
+   - 照片：结局邀请函里的 src 目前是 AI 占位图，有真实照片后
+     换成图片路径（如 "photos/1.jpg"，与本文件同目录）
+   - 音乐：mp3 放本文件同目录，music 填文件名（建议《爱就一个字》）
+============================================================ */
+const img = (prompt, size) =>
+  "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=" + encodeURIComponent(prompt) + "&image_size=" + (size || "portrait_4_3");
+
+const CONFIG = {
+  groom: "陈家昊",
+  bride: "杨晓燕",
+  date: "2026-11-03 12:00",        // TODO: 12:00 是占位，确认午宴/晚宴时间后改（晚宴一般 17:58/18:08）
+  venue: "酒店名称待定",            // TODO
+  address: "详细地址待定",          // TODO
+  city: "上饶",
+  mapKeyword: "",                  // 导航搜索关键词，留空则用 venue
+  music: "",                       // 结局邀请函背景音乐，如 "bgm.mp3"（建议《爱就一个字》）；游戏内自带 8-bit 配乐，无需文件
+
+  /* --- 结局邀请函照片（AI 占位，可换真实照片路径） --- */
+  heroImg: img("Editorial wedding film photography, young asian couple back view walking hand in hand on open road at golden dusk, soft warm backlight, 35mm film grain, muted earthy tones, minimalist timeless romantic mood, no text"),
+
+  /* --- 搞笑错误申请书名字（L1 翻卡） --- */
+  wrongNames: ["王铁柱", "李狗蛋", "赵铁英", "刘二狗", "张翠花", "孙悟空", "朱八戒", "尼古拉斯·赵四", "周一鸣", "吴彦祖（自称）", "外卖清单"],
+  wrongLines: [
+    "这字写得…先淘汰他。", "这位同学潜力不错，但不是她。", "翻到一张写满情诗的？先存下来当把柄。",
+    "不是她，继续翻！", "这张连名字都没写，帮辩论队省个名额。", "别翻了别翻了，就在旁边那张！"
+  ],
+
+  /* --- L3 导航语音 --- */
+  navLines: [
+    "前方500米，请保持直行", "雨太大了，导航都开始结巴了", "您已偏航——不，您没有，是地图慌了",
+    "已重新规划路线", "前方路面湿滑，请稳住", "再坚持一下，快到了"
+  ],
+
+  /* --- L3 摔车后她的安慰 --- */
+  hitLines: [
+    "她拍拍你的肩：慢点，我陪你。", "她笑着扶你：又摔？起来，再来。", "她说：别急，雨总会停的。"
+  ],
+
+  /* --- L3 捡爱心时她说的话 --- */
+  sweetLines: [
+    "她说：抱紧了。", "她说：到了给你买热奶茶。", "她说：你看，雨里也有星星。"
+  ],
+
+  /* --- L4 戒指没接稳 --- */
+  ringMissLines: [
+    "戒指荡过头了，稳住，再来！", "差点砸脚上……再来一次。", "别慌，她还在笑呢。再试！"
+  ]
+};
+
+/* ================= 工具 ================= */
+const $ = (s, c = document) => c.querySelector(s);
+const p2 = n => String(n).padStart(2, "0");
+const rand = (a, b) => a + Math.random() * (b - a);
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+
+let toastTimer;
+function showToast(t) {
+  const el = $("#toast");
+  el.textContent = t; el.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("on"), 2000);
+}
+
+/* 安全存储：微信文件预览等受限环境下 localStorage 会抛错，降级为内存，保证页面不死 */
+const store = {
+  _m: {},
+  get(k) { try { return store.get(k); } catch (e) { return k in this._m ? this._m[k] : null; } },
+  set(k, v) { try { store.set(k, v); } catch (e) { this._m[k] = v; } }
+};
+
+/* ================= 音效（八音盒/木琴音色 + 合成混响，柔和不刺耳） ================= */
+let AC = null, bus = null;
+function audio() {
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      // 混响总线：干声 + 合成脉冲混响，让声音有空间感而不是"干巴巴的滴滴滴"
+      bus = AC.createGain(); bus.gain.value = .9;
+      const dry = AC.createGain(); dry.gain.value = .78;
+      const wet = AC.createGain(); wet.gain.value = .34;
+      const conv = AC.createConvolver();
+      const len = Math.floor(AC.sampleRate * 2), ir = AC.createBuffer(2, len, AC.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const d = ir.getChannelData(c);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+      }
+      conv.buffer = ir;
+      bus.connect(dry); dry.connect(AC.destination);
+      bus.connect(conv); conv.connect(wet); wet.connect(AC.destination);
+    } catch (e) {}
+  }
+  if (AC && AC.state === "suspended") AC.resume();
+  return AC;
+}
+function midiF(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+/* 八音盒铃声：正弦主音 + 微弱 3 倍频泛音，进混响总线 */
+function bell(f, dur, vol, when) {
+  const ac = AC; if (!ac || !bus) return;
+  const t = when || ac.currentTime;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .012);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  const o = ac.createOscillator(); o.type = "sine"; o.frequency.value = f;
+  const o2 = ac.createOscillator(); o2.type = "sine"; o2.frequency.value = f * 3.02;
+  const g2 = ac.createGain();
+  g2.gain.setValueAtTime(vol * .15, t);
+  g2.gain.exponentialRampToValueAtTime(.0001, t + dur * .3);
+  o.connect(g); o2.connect(g2); g2.connect(g);
+  g.connect(bus);
+  o.start(t); o.stop(t + dur + .05); o2.start(t); o2.stop(t + dur + .05);
+}
+/* 暖垫：两层轻微失谐的三角波过低通，长音铺底 */
+function padVoice(f, dur, t, vol) {
+  const ac = AC; if (!ac || !bus) return;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + dur * .35);
+  g.gain.linearRampToValueAtTime(.0001, t + dur);
+  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 800;
+  [-6, 6].forEach(c => {
+    const o = ac.createOscillator(); o.type = "triangle";
+    o.frequency.value = f * Math.pow(2, c / 1200);
+    o.connect(lp); o.start(t); o.stop(t + dur + .1);
+  });
+  lp.connect(g); g.connect(bus);
+}
+function padChord(tones, dur, t) { tones.slice(1, 3).forEach(m => padVoice(midiF(m), dur, t, .02)); }
+/* 低音：柔正弦 */
+function bassNote(midi, dur, t) {
+  const ac = AC; if (!ac || !bus) return;
+  const o = ac.createOscillator(); o.type = "sine"; o.frequency.value = midiF(midi);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.linearRampToValueAtTime(.07, t + .03);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(bus);
+  o.start(t); o.stop(t + dur + .05);
+}
+/* 闷响：低频下扫，代替刺耳的锯齿"错误音" */
+function thud() {
+  const ac = AC; if (!ac || !bus) return;
+  const t = ac.currentTime;
+  const o = ac.createOscillator(); o.type = "sine";
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(55, t + .18);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(.12, t);
+  g.gain.exponentialRampToValueAtTime(.0001, t + .2);
+  o.connect(g); g.connect(bus);
+  o.start(t); o.stop(t + .25);
+}
+
+const sfx = {
+  tap: () => bell(740, .22, .09),
+  flip: () => bell(494, .25, .08),
+  jump: () => { bell(587, .16, .07); setTimeout(() => bell(880, .22, .07), 70); },
+  hit: () => thud(),
+  heart: () => bell(1046, .4, .08),
+  jingle: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => bell(f, .6, .08), i * 120)),
+  tear: () => [784, 659, 523].forEach((f, i) => setTimeout(() => bell(f, .9, .08), i * 170))
+};
+
+/* 配乐：八音盒 + 暖垫 + 低音，卡农式和弦进行，五个场景五种情绪（程序生成，无需音乐文件） */
+const Chip = {
+  on: false, timer: null, nextT: 0, step: 0, ac: null, moodName: "title",
+  MOODS: {
+    title: { bpm: 66, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 1 },   // 标题：静谧
+    day:   { bpm: 84, pad: 0, bell: 1, bass: 1, arp: 1, oct: 12, every: 1 },  // 白天：轻快
+    night: { bpm: 62, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 2 },   // 夜晚：安静
+    ride:  { bpm: 112, pad: 0, bell: 0, bass: 1, arp: 1, oct: 0, every: 4 },  // 雨夜赶路：急促
+    love:  { bpm: 56, pad: 1, bell: 1, bass: 1, arp: 0, oct: 0, every: 1 }    // 求婚：深情
+  },
+  /* 卡农进行：D - A - Bm - F#m - G - D - G - A */
+  CHORDS: [
+    [50, 57, 62, 66], [45, 52, 57, 61], [47, 54, 59, 62], [42, 49, 54, 57],
+    [43, 50, 55, 59], [38, 45, 50, 54], [43, 50, 55, 59], [45, 52, 57, 61]
+  ],
+  MELODY: [78, 76, 74, 73, 71, 69, 71, 73],   // F#5 E5 D5 C#5 B4 A4 B4 C#5，一小节一音
+  mood(name) { this.moodName = name; },
+  start() {
+    const ac = audio(); if (!ac || this.on) return;
+    this.ac = ac; this.on = true; this.step = 0;
+    this.nextT = ac.currentTime + .08;
+    this.timer = setInterval(() => this._schedule(), 60);
+  },
+  stop() { this.on = false; clearInterval(this.timer); },
+  _schedule() {
+    const m = this.MOODS[this.moodName] || this.MOODS.title;
+    const stepDur = 60 / m.bpm / 2;
+    while (this.nextT < this.ac.currentTime + .25) {
+      const bar = Math.floor(this.step / 8) % 8, sub = this.step % 8;
+      const ch = this.CHORDS[bar], t = this.nextT;
+      if (sub === 0) {
+        if (m.pad) padChord(ch, stepDur * 8.4, t);
+        if (m.bass) bassNote(ch[0] - 12, stepDur * 7, t);
+        if (m.bell && bar % m.every === 0) bell(midiF(this.MELODY[bar] + m.oct), 1.8, .07, t);
+      }
+      if (m.arp) bell(midiF(ch[1 + (this.step % 3)] + 12), .55, .026, t);   // 轻柔琶音，替代方波节奏
+      this.nextT += stepDur; this.step++;
+    }
+  }
+};
+let userMuted = false, gameStarted = false;
+function startGameMusic() {
+  gameStarted = true;
+  if (!userMuted) Chip.start();
+  $("#music-btn").classList.add("show");
+  $("#music-btn").classList.toggle("playing", Chip.on);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { Chip.stop(); $("#music-btn").classList.remove("playing"); }
+  else if (gameStarted && !userMuted && $("#invite").classList.contains("hide")) {
+    Chip.start(); $("#music-btn").classList.add("playing");
+  }
+});
+
+/* ================= 画布（高度自适应长屏手机） ================= */
+const W = 216;
+const cv = $("#cv"), ctx = cv.getContext("2d");
+let H = 384, GROUND = 316, viewScale = 1;
+function fit() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / 384);
+  viewScale = s;
+  const newH = Math.max(384, Math.min(680, Math.round(window.innerHeight / s)));
+  if (newH !== H || cv.width !== W) {
+    H = newH; GROUND = H - 68;
+    cv.width = W; cv.height = H;
+    ctx.imageSmoothingEnabled = false;
+  }
+  cv.style.width = W * s + "px";
+  cv.style.height = H * s + "px";
+}
+window.addEventListener("resize", fit);
+window.addEventListener("orientationchange", fit);
+fit();
+
+/* ================= 像素精灵 ================= */
+const PAL = {
+  ".": null,
+  "H": "#33291f", "S": "#eec9a0", "E": "#2b2722",
+  "T": "#5b7a9e", "P": "#3a3f4a", "B": "#22201d",
+  "D": "#8a4a5e", "W": "#f7f3ea", "V": "#e3dccb", "A": "#a34a2e", "G": "#d9a441"
+};
+function makeSprite(rows) {
+  const h = rows.length, w = rows[0].length;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { const col = PAL[r[x]]; if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); } } });
+  return c;
+}
+
+/* 男主（朝右）10x16：站 / 走1 / 走2 */
+const M_HEAD = [
+  "..HHHHHH..",
+  ".HHHHHHHH.",
+  ".HHHHHHHH.",
+  ".HHSSSSSS.",
+  ".HHSSSESS.",
+  ".HHSSSSSS.",
+  "..HSSSS..."
+];
+const M_STAND = makeSprite(M_HEAD.concat([
+  "..TTTTTT..",
+  ".TTTTTTTS.",
+  ".TTTTTTT..",
+  "..TTTTTT..",
+  "..PPPPPP..",
+  "..PP..PP..",
+  "..PP..PP..",
+  "..PP..PP..",
+  ".BBB..BBB."
+]));
+const M_WALK1 = makeSprite(M_HEAD.concat([
+  "..TTTTTT..",
+  ".TTTTTTTS.",
+  ".TTTTTTT..",
+  "..TTTTTT..",
+  "..PPPPPP..",
+  "..PPP.PP..",
+  ".PP....PP.",
+  ".PP....PP.",
+  "BBB....BBB"
+]));
+const M_WALK2 = makeSprite(M_HEAD.concat([
+  "..TTTTTT..",
+  ".TTTTTTTS.",
+  ".TTTTTTT..",
+  "..TTTTTT..",
+  "..PPPPPP..",
+  "..PP.PPP..",
+  ".PP....PP.",
+  ".PP...PP..",
+  ".BBB.BBB.."
+]));
+/* 女主（朝左）10x16 */
+const H_HEAD = [
+  "..HHHHHH..",
+  ".HHHHHHHH.",
+  ".HHHHHHHH.",
+  ".SSSSSSHH.",
+  ".SSESSSHH.",
+  ".SSSSSSHH.",
+  "..SSSSHHH."
+];
+const H_STAND = makeSprite(H_HEAD.concat([
+  "..DDDDDD..",
+  ".DDDDDDDD.",
+  ".SDDDDDDS.",
+  "..DDDDDD..",
+  "..DDDDDD..",
+  ".DDDDDDDD.",
+  ".DDDDDDDD.",
+  "DDDDDDDDDD",
+  ".B......B."
+]));
+/* 婚纱（朝左） */
+const H_WED = makeSprite([
+  "..VVVVVV..",
+  ".VVVVVVVV.",
+  ".VVHHHHVV.",
+  ".SSSSSSVV.",
+  ".SSESSSVV.",
+  "..SSSSSVV.",
+  "...WWWW...",
+  "..WWWWWW..",
+  ".WWWWWWWW.",
+  ".SWWWWWWS.",
+  "..WWWWWW..",
+  ".WWWWWWWW.",
+  "WWWWWWWWWW",
+  "WWWWWWWWWW",
+  "WWWWWWWWWW",
+  ".W......W."
+]);
+/* 摩托车上坐姿（头+上身）10x12 */
+const RIDE_M = makeSprite(M_HEAD.concat([
+  "..TTTTTT..",
+  ".TTTTTTTS.",
+  ".TTTTTTT..",
+  ".TTTTTTT..",
+  "..TTTTT...",
+  "..PPPP...."
+]));
+const RIDE_H = makeSprite(H_HEAD.concat([
+  "..DDDDDD..",
+  ".DDDDDDDD.",
+  ".SDDDDDDS.",
+  ".DDDDDDD..",
+  "..DDDDD...",
+  "..DDDD...."
+]));
+/* 撑伞的男主（伞另画） */
+const M_UMBRELLA = M_STAND;
+
+const CHAR_W = 10, CHAR_H = 16, CHAR_S = 2;   // 绘制放大 2 倍
+const CHAR_PW = CHAR_W * CHAR_S, CHAR_PH = CHAR_H * CHAR_S;
+
+function drawSprite(img, x, y, flip) {
+  const w = img.width * CHAR_S, h = img.height * CHAR_S;
+  if (flip) { ctx.save(); ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); ctx.restore(); }
+  else ctx.drawImage(img, x, y, w, h);
+}
+
+/* 像素爱心（5x5 点阵，s=格宽） */
+const HEART_MAP = [".#.#.", "#####", "#####", ".###.", "..#.."];
+function drawPixelHeart(x, y, s, col) {
+  ctx.fillStyle = col;
+  HEART_MAP.forEach((row, ry) => {
+    for (let rx = 0; rx < 5; rx++) if (row[rx] === "#") ctx.fillRect(x + rx * s - 5 * s / 2, y + ry * s - 5 * s / 2, s, s);
+  });
+}
+
+/* 道具绘制 */
+function drawUmbrella(cx, top) {
+  ctx.fillStyle = PAL.A;
+  ctx.fillRect(cx - 11, top, 22, 2);
+  ctx.fillRect(cx - 8, top + 2, 16, 2);
+  ctx.fillRect(cx - 4, top + 4, 8, 2);
+  ctx.fillRect(cx - 1, top + 6, 2, 3);
+  ctx.fillStyle = PAL.G; ctx.fillRect(cx - 1, top - 2, 2, 2);
+  ctx.fillStyle = "#4a4038"; ctx.fillRect(cx - 1, top + 9, 1, 10);
+}
+function drawMoto(x, baseY, wheelSpin) {
+  const y = baseY;
+  ctx.fillStyle = "#1a1a1e";
+  ctx.fillRect(x + 6, y - 6, 10, 6); ctx.fillRect(x + 32, y - 6, 10, 6);      // 轮胎
+  ctx.fillStyle = "#6a6f7a";
+  ctx.fillRect(x + 10 + (wheelSpin ? 2 : 0), y - 4, 2, 2); ctx.fillRect(x + 36 - (wheelSpin ? 2 : 0), y - 4, 2, 2);
+  ctx.fillStyle = PAL.A;
+  ctx.fillRect(x + 12, y - 16, 24, 4); ctx.fillRect(x + 10, y - 12, 26, 5);   // 车身
+  ctx.fillStyle = "#22201d"; ctx.fillRect(x + 14, y - 19, 12, 3);             // 座
+  ctx.fillStyle = PAL.G; ctx.fillRect(x + 34, y - 15, 4, 3);                  // 车灯
+  ctx.fillStyle = "#3a3f4a"; ctx.fillRect(x + 33, y - 22, 2, 8);              // 把手
+}
+function drawPuddle(x, y, w) {
+  ctx.fillStyle = "#20283a";
+  ctx.fillRect(x, y, w, 3); ctx.fillRect(x + 3, y + 3, w - 6, 2);
+  ctx.fillStyle = "#8fa3c4"; ctx.fillRect(x + 2, y, w - 10, 1);
+}
+function drawStone(x, y) {
+  ctx.fillStyle = "#565b66"; ctx.fillRect(x, y - 5, 9, 5);
+  ctx.fillStyle = "#7a7f8a"; ctx.fillRect(x + 1, y - 7, 6, 2);
+}
+
+/* ================= 对话系统 ================= */
+const WHO_COLOR = { "陈家昊": "#a34a2e", "晓燕": "#8a4a5e", "她": "#8a4a5e", "旁白": "#8a8072" };
+const Dlg = {
+  active: false, lines: [], idx: 0, txt: "", pos: 0, typing: false, timer: null, onDone: null,
+  show(lines, onDone) {
+    this.active = true; this.lines = lines; this.idx = 0; this.onDone = onDone || null;
+    $("#dlg").classList.add("show");
+    $("#dlg").classList.remove("no-next");
+    this._play();
+  },
+  _play() {
+    const l = this.lines[this.idx];
+    $("#dlg-who").textContent = l.who;
+    $("#dlg-who").style.color = WHO_COLOR[l.who] || "#2b2722";
+    this.txt = l.txt; this.pos = 0; this.typing = true;
+    $("#dlg-txt").textContent = "";
+    clearInterval(this.timer);
+    this.timer = setInterval(() => {
+      this.pos++;
+      const ch = this.txt[this.pos - 1];
+      $("#dlg-txt").textContent = this.txt.slice(0, this.pos);
+      if (ch && "，。！？…—".includes(ch)) { clearInterval(this.timer); this.timer = setTimeout(() => this._cont(), 140); }
+      else if (this.pos >= this.txt.length) { clearInterval(this.timer); this.typing = false; }
+    }, 26);
+  },
+  _cont() {
+    if (this.pos >= this.txt.length) { this.typing = false; return; }
+    this.timer = setInterval(() => {
+      this.pos++;
+      $("#dlg-txt").textContent = this.txt.slice(0, this.pos);
+      if (this.pos >= this.txt.length) { clearInterval(this.timer); this.typing = false; }
+    }, 26);
+  },
+  tap() {
+    if (!this.active) return;
+    if (this.typing) { clearInterval(this.timer); clearTimeout(this.timer); this.pos = this.txt.length; $("#dlg-txt").textContent = this.txt; this.typing = false; return; }
+    this.idx++;
+    if (this.idx >= this.lines.length) { this.close(); }
+    else this._play();
+  },
+  close() {
+    this.active = false;
+    $("#dlg").classList.remove("show");
+    clearInterval(this.timer);
+    const cb = this.onDone; this.onDone = null;
+    if (cb) cb();
+  }
+};
+
+/* ================= HUD / 提示 ================= */
+function setLevel(name) { $("#lv-chip").textContent = name; }
+function setHearts(n, max) {
+  const el = $("#hearts");
+  el.classList.toggle("show", !!max);
+  el.textContent = max ? "♥".repeat(n) + "♡".repeat(max - n) : "";
+}
+let hintTimer;
+function hint(txt, stay) {
+  const el = $("#hint");
+  el.textContent = txt; el.classList.add("show");
+  clearTimeout(hintTimer);
+  if (!stay) hintTimer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+function hintOff() { $("#hint").classList.remove("show"); clearTimeout(hintTimer); }
+function navSay(txt, dur) {
+  const el = $("#nav-bubble");
+  el.textContent = txt; el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), dur || 2400);
+}
+
+/* ================= 回忆碎片 ================= */
+const SHARDS = [
+  { id: "l1", icon: "📄", name: "辩论队申请书" },
+  { id: "l2", icon: "☂️", name: "那把伞" },
+  { id: "walk", icon: "🌙", name: "那个夜晚" },
+  { id: "l3", icon: "🏍️", name: "雨夜后座" },
+  { id: "l4", icon: "💍", name: "戒指" }
+];
+function getShards() { try { return JSON.parse(store.get("wg_shards") || "[]"); } catch (e) { return []; } }
+function resetShards() { store.set("wg_shards", "[]"); updateShardHud(); }
+function updateShardHud() {
+  const el = $("#shard-chip"), got = getShards();
+  el.classList.remove("hide");
+  el.innerHTML = SHARDS.map(s => '<span style="opacity:' + (got.indexOf(s.id) >= 0 ? 1 : .22) + '">' + s.icon + '</span>').join("");
+}
+function awardShard(id) {
+  const def = SHARDS.find(s => s.id === id), got = getShards();
+  if (got.indexOf(id) < 0) {
+    got.push(id);
+    store.set("wg_shards", JSON.stringify(got));
+    setTimeout(() => { sfx.jingle(); showToast("✦ 获得回忆碎片 · " + def.name + " " + def.icon); buzz(25); }, 400);
+  }
+  updateShardHud();
+}
+
+/* ================= 战绩 ================= */
+let stats = { flips: 0, bumps: 0, hearts: 0, t0: 0, skipped: false };
+function resetStats() { stats = { flips: 0, bumps: 0, hearts: 0, t0: Date.now(), skipped: false }; }
+
+/* ================= 场景框架 ================= */
+let scene = null, sceneToken = 0;
+const keys = {};
+function go(name, arg) {
+  sceneToken++;
+  scene = SCENES[name];
+  ctx.clearRect(0, 0, W, H);
+  $("#nav-bubble").classList.remove("show");
+  $("#l4bar").classList.remove("show");
+  $("#dist").classList.add("hide");
+  setHearts(0, 0);
+  if (scene.enter) scene.enter(arg, sceneToken);
+}
+
+/* 雨滴粒子工具 */
+function makeRain(n, speed) {
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push({ x: rand(0, W), y: rand(0, H), v: rand(.8, 1.3) * speed });
+  return arr;
+}
+function drawRain(arr) {
+  ctx.strokeStyle = "rgba(190,205,230,.5)";
+  ctx.lineWidth = 1;
+  arr.forEach(d => {
+    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 1, d.y + 4); ctx.stroke();
+    d.y += d.v; d.x -= .2;
+    if (d.y > H) { d.y = -6; d.x = rand(0, W + 10); }
+  });
+}
+function drawStars(t) {
+  for (let i = 0; i < 40; i++) {
+    const x = (i * 61 + ((i * 7) % 13)) % W, y = (i * 37 + ((i * 11) % 7)) % (H * .55);
+    const tw = Math.sin(t / 600 + i) > .2;
+    ctx.fillStyle = tw ? "#f5f0e6" : "#5a6478";
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+/* ================= 各场景 ================= */
+const SCENES = {};
+
+/* ---- 标题 ---- */
+SCENES.title = {
+  enter() {
+    setLevel("十年副本");
+    Chip.mood("title");
+    $("#title").classList.remove("hide");
+    updateShardHud();
+    const has = +store.get("wg_level") || 0;
+    if (has > 1) { $("#t-links").classList.remove("hide"); $("#btn-continue").textContent = "继续 · 第 " + Math.min(5, has) + " 关"; }
+  }
+};
+function drawTitleBG(t) {
+  ctx.fillStyle = "#141a28"; ctx.fillRect(0, 0, W, H);
+  drawStars(t);
+  ctx.fillStyle = "#1e2436"; ctx.fillRect(0, GROUND - 16, W, H - GROUND + 16);   // 地面
+  ctx.fillStyle = "#232a40";
+  ctx.fillRect(10, GROUND - 106, 60, 90); ctx.fillRect(150, GROUND - 126, 56, 110);
+  ctx.fillStyle = "#d9a441";
+  ctx.fillRect(20, GROUND - 86, 6, 8); ctx.fillRect(40, GROUND - 66, 6, 8); ctx.fillRect(165, GROUND - 101, 6, 8);
+  ctx.fillStyle = "#f5f0e6"; ctx.beginPath(); ctx.arc(170, 60, 14, 0, 7); ctx.fill();
+  ctx.fillStyle = "#141a28"; ctx.beginPath(); ctx.arc(164, 55, 12, 0, 7); ctx.fill();
+  drawSprite(M_STAND, 18, GROUND - CHAR_PH, false);
+  drawSprite(H_STAND, 40, GROUND - CHAR_PH, false);
+  const bob = Math.sin(t / 400) > 0 ? 0 : 1;
+  drawPixelHeart(34, GROUND - CHAR_PH - 10 + bob, 1, "#c96a7e");
+}
+
+/* ---- L1 招新找名字 ---- */
+SCENES.l1 = {
+  cards: [], sheIdx: 0, found: false, wrongCount: 0, token: 0, shakeT: 0,
+  enter(tok) {
+    this.token = tok; this.found = false; this.wrongCount = 0; this.shakeT = 0;
+    setLevel("第 1 关 · 招新找名字");
+    Chip.mood("day");
+    $("#title").classList.add("hide");
+    this.sheIdx = Math.floor(Math.random() * 12);
+    const names = CONFIG.wrongNames.slice().sort(() => Math.random() - .5);
+    this.cards = [];
+    for (let i = 0; i < 12; i++) this.cards.push({ open: false, name: names[i - (i > this.sheIdx ? 1 : 0)] || "同学", she: i === this.sheIdx });
+    hint("在申请书里找出「她」的那份", false);
+    Dlg.show([
+      { who: "旁白", txt: "2016 年秋，大学辩论队招新。" },
+      { who: "陈家昊", txt: "我在一叠申请书里翻来翻去。翻到一份，名字和照片，都让人多看了两眼。" },
+      { who: "旁白", txt: "任务：在下面找出「她」的那份申请书" }
+    ]);
+  },
+  cardRect(i) {
+    const cw = 36, ch = 46, gx = 8, gy = 8, x0 = (W - (cw * 3 + gx * 2)) / 2, y0 = 58;
+    return { x: x0 + (i % 3) * (cw + gx), y: y0 + Math.floor(i / 3) * (ch + gy), w: cw, h: ch };
+  },
+  draw(t) {
+    ctx.save();
+    if (this.shakeT > 0) { this.shakeT -= 16; ctx.translate(Math.sin(t / 20) * 2 * Math.min(1, this.shakeT / 200), 0); }
+    ctx.fillStyle = "#e8dcc4"; ctx.fillRect(-4, 0, W + 8, H);      // 室内墙
+    ctx.fillStyle = "#d8c8a8"; ctx.fillRect(16, 36, W - 32, 232);  // 软木板
+    ctx.strokeStyle = "rgba(43,39,34,.18)"; ctx.strokeRect(16.5, 36.5, W - 33, 231);
+    ctx.fillStyle = "#8a6a44"; ctx.fillRect(-4, GROUND - 54, W + 8, H - GROUND + 54); // 木桌
+    ctx.fillStyle = "#7a5c3a"; ctx.fillRect(-4, GROUND - 54, W + 8, 4);
+    this.cards.forEach((c, i) => {
+      const r = this.cardRect(i);
+      ctx.fillStyle = "#1d1a16"; ctx.fillRect(r.x + 2, r.y + 3, r.w, r.h);
+      ctx.fillStyle = c.open ? (c.she ? "#fbe9dd" : "#efe8d8") : "#faf6ec";
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = "rgba(43,39,34,.3)"; ctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1);
+      ctx.fillStyle = PAL.A; ctx.fillRect(r.x + r.w / 2 - 1, r.y - 1, 2, 4); // 图钉
+      if (!c.open) {
+        ctx.fillStyle = "#cfc4ae";
+        ctx.fillRect(r.x + 6, r.y + 8, r.w - 12, 2);
+        ctx.fillRect(r.x + 6, r.y + 14, r.w - 12, 2);
+        ctx.fillRect(r.x + 6, r.y + 20, r.w - 20, 2);
+      } else if (c.she) {
+        ctx.fillStyle = PAL.A;
+        ctx.font = "9px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("她 ♥", r.x + r.w / 2, r.y + 24);
+        ctx.font = "6px sans-serif"; ctx.fillStyle = "#8a8072";
+        ctx.fillText("就是这份", r.x + r.w / 2, r.y + 36);
+      } else {
+        ctx.fillStyle = "#4a443c"; ctx.font = "7px sans-serif"; ctx.textAlign = "center";
+        const nm = c.name;
+        ctx.fillText(nm.slice(0, 5), r.x + r.w / 2, r.y + 18);
+        if (nm.length > 5) ctx.fillText(nm.slice(5, 10), r.x + r.w / 2, r.y + 28);
+      }
+    });
+    if (this.found) { drawSprite(M_STAND, 20, GROUND - CHAR_PH, false); }
+    ctx.restore();
+  },
+  pointer(type, x, y) {
+    if (type !== "down" || this.found || Dlg.active) return;
+    for (let i = 0; i < 12; i++) {
+      const r = this.cardRect(i), c = this.cards[i];
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h && !c.open) {
+        c.open = true; sfx.flip();
+        if (c.she) {
+          this.found = true;
+          saveLevel(2);
+          awardShard("l1");
+          Dlg.show([
+            { who: "旁白", txt: "就是这份。" },
+            { who: "晓燕", txt: "那天面试，我看到一个男生翻申请书翻得很认真。后来才知道，他翻到的正好是我的。" },
+            { who: "旁白", txt: "再后来，QQ 上总是她先发来消息。" },
+            { who: "陈家昊", txt: "所以你看——到底是谁先动的心，到现在也说不清。" }
+          ], () => go("l2"));
+        } else {
+          this.wrongCount++; stats.flips++;
+          this.shakeT = 200; buzz(15);
+          if (this.wrongCount % 5 === 0) hint("偷偷提示：她就在刚才翻过那几张旁边", false);
+          showToast(CONFIG.wrongLines[Math.floor(Math.random() * CONFIG.wrongLines.length)]);
+          setTimeout(() => { c.open = false; }, 900);
+        }
+        break;
+      }
+    }
+  }
+};
+
+/* ---- L2 食堂送伞 ---- */
+SCENES.l2 = {
+  px: 6, herX: 0, holding: false, done: false, rain: null, firstHold: false, token: 0,
+  bubbles: [], bubbleT: 0, sparkle: 0,
+  enter(tok) {
+    this.token = tok; this.px = 6; this.done = false; this.firstHold = false;
+    this.rain = makeRain(60, 2.2);
+    this.herX = W - 52;
+    this.bubbles = []; this.bubbleT = 0; this.sparkle = 0;
+    setLevel("第 2 关 · 食堂送伞");
+    Chip.mood("day");
+    Dlg.show([
+      { who: "旁白", txt: "相识两个多月，QQ 上越聊越多。" },
+      { who: "陈家昊", txt: "那天约在食堂见面——明明有太阳，她却「恰好」没带伞。" },
+      { who: "旁白", txt: "按住或连续点按屏幕，把伞送到她身边" }
+    ], () => hint("按住或连续点按屏幕，把伞送到她身边", true));
+  },
+  draw(t) {
+    const rt = GROUND;   // 路面基准
+    ctx.fillStyle = "#3a4152"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#2c3345";
+    ctx.fillRect(0, rt - 166, 70, 130); ctx.fillRect(80, rt - 146, 60, 110);   // 远处楼
+    ctx.fillStyle = "#232838"; ctx.fillRect(0, rt - 76, W, 76);
+    ctx.fillStyle = "#d9a441";                                                 // 亮灯的窗
+    ctx.fillRect(14, rt - 146, 8, 10); ctx.fillRect(34, rt - 126, 8, 10); ctx.fillRect(96, rt - 126, 8, 10);
+    ctx.fillStyle = "#5a4436"; ctx.fillRect(0, rt, W, H - rt);                 // 路
+    ctx.fillStyle = "#4a382c"; ctx.fillRect(0, rt, W, 3);
+    // 食堂（右侧）
+    ctx.fillStyle = "#2b3040"; ctx.fillRect(W - 78, rt - 136, 78, 136);
+    ctx.fillStyle = "#3a3040"; ctx.fillRect(W - 86, rt - 148, 86, 14);         // 雨棚
+    ctx.fillStyle = PAL.G; ctx.fillRect(W - 60, rt - 106, 12, 14); ctx.fillRect(W - 36, rt - 106, 12, 14);
+    ctx.fillStyle = "#1d2230"; ctx.fillRect(W - 52, rt - 66, 26, 66);          // 门
+    drawRain(this.rain);
+    // 她（在屋檐下，没伞）
+    drawSprite(H_STAND, this.herX, rt - CHAR_PH, false);
+    // 他（撑伞走向右）
+    const walking = this.holding && !this.done;
+    const spr = !walking ? M_UMBRELLA : (Math.floor(t / 130) % 2 ? M_WALK1 : M_WALK2);
+    drawSprite(spr, this.px, rt - CHAR_PH, false);
+    drawUmbrella(this.px + CHAR_PW / 2, rt - CHAR_PH - 16);
+    // 心形气泡（走路时冒出来）
+    for (let i = this.bubbles.length - 1; i >= 0; i--) {
+      const b = this.bubbles[i];
+      ctx.globalAlpha = Math.max(0, b.life);
+      drawPixelHeart(b.x + Math.sin(t / 200 + i) * 3, b.y, 2, "#e8a0b4");
+      ctx.globalAlpha = 1;
+    }
+    // 到达时的小星光
+    if (this.sparkle > 0) {
+      this.sparkle -= 16;
+      ctx.fillStyle = "#f5e3a8";
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * 6.28 + t / 300;
+        ctx.fillRect(this.px + 20 + Math.cos(a) * 16, rt - 24 + Math.sin(a) * 12, 2, 2);
+      }
+    }
+    // 水花
+    ctx.fillStyle = "rgba(190,205,230,.35)";
+    for (let i = 0; i < 8; i++) {
+      const sx = (i * 31 + t / 12) % W, sy = rt + (i % 3) * 8;
+      ctx.fillRect(sx, sy, 2, 1);
+    }
+  },
+  update(dt) {
+    if (this.done) return;
+    for (let i = this.bubbles.length - 1; i >= 0; i--) {
+      const b = this.bubbles[i];
+      b.y -= 14 * dt; b.life -= dt * .7;
+      if (b.life <= 0) this.bubbles.splice(i, 1);
+    }
+    const move = (this.holding || keys.ArrowRight || keys.KeyD) ? 48 : 0;
+    const target = this.herX - CHAR_PW - 2;
+    this.px = Math.min(this.px + move * dt, target);
+    if (move && !this.firstHold) { this.firstHold = true; hintOff(); }
+    if (move) {
+      this.bubbleT -= dt;
+      if (this.bubbleT <= 0) { this.bubbleT = .45; this.bubbles.push({ x: this.px + CHAR_PW - 2, y: GROUND - CHAR_PH - 18, life: 1 }); }
+    }
+    if (this.px >= target - 1 && !this.done) {
+      this.done = true; this.holding = false; this.sparkle = 900;
+      sfx.jingle(); saveLevel(3);
+      awardShard("l2");
+      Dlg.show([
+        { who: "旁白", txt: "一把伞，两个人，绕着食堂外面走了一大圈才舍得回去。" },
+        { who: "晓燕", txt: "那天我是故意没带伞的。就是想看看，他会不会追出来。" },
+        { who: "陈家昊", txt: "那两个月，没有突然的心动。就是……不知不觉，自然而然。" }
+      ], () => go("walk"));
+    }
+  },
+  pointer(type) {
+    if (this.done || Dlg.active) return;
+    if (type === "down") {
+      this.holding = true;
+      this.px = Math.min(this.px + 14, this.herX - CHAR_PW - 2);   // 点一下也往前挪一小步
+      sfx.tap();
+    } else this.holding = false;
+  }
+};
+
+/* ---- L3 那个夜晚（2016.11.6 校园散步 · 表白） ---- */
+SCENES.walk = {
+  px: 6, pathEnd: 168, holding: false, done: false, token: 0,
+  phase: "walk", mt: 0, mx: 54,
+  wp: [
+    { x: 54, done: false, lines: [
+      { who: "晓燕", txt: "她说：你性格挺好的，跟你待在一起很舒服。" },
+      { who: "陈家昊", txt: "路灯下面，我的心跳漏了半拍。" }
+    ]},
+    { x: 112, done: false, lines: [
+      { who: "晓燕", txt: "这两个月，QQ 上总是我先找你。" },
+      { who: "晓燕", txt: "今天晚上，换你说点什么吧。" }
+    ]}
+  ],
+  fire: [],
+  enter(tok) {
+    this.token = tok; this.px = 6; this.holding = false; this.done = false;
+    this.phase = "walk"; this.mt = 0; this.mx = 54;
+    this.wp.forEach(w => w.done = false);
+    this.fire = [];
+    for (let i = 0; i < 12; i++) this.fire.push({ x: rand(0, W), y: rand(GROUND - 90, GROUND - 12), p: rand(0, 6) });
+    Chip.mood("night");
+    setLevel("第 3 关 · 那个夜晚");
+    Dlg.show([
+      { who: "旁白", txt: "2016 年 11 月 6 日，晚上。校园里。" },
+      { who: "陈家昊", txt: "那晚我们一起散步，谁也没提回去的事。" },
+      { who: "旁白", txt: "按住或点按屏幕，陪她把这条路走完" }
+    ], () => hint("按住或点按屏幕，陪她把这条路走完", true));
+  },
+  draw(t) {
+    ctx.fillStyle = "#10162a"; ctx.fillRect(0, 0, W, H);
+    drawStars(t);
+    ctx.fillStyle = "#f0e6c8"; ctx.beginPath(); ctx.arc(178, 54, 11, 0, 7); ctx.fill();
+    ctx.fillStyle = "#10162a"; ctx.beginPath(); ctx.arc(173, 50, 9, 0, 7); ctx.fill();
+    // 远景教学楼（视差）
+    const par = this.px * .4;
+    ctx.fillStyle = "#1a2138";
+    ctx.fillRect(34 - par, GROUND - 128, 70, 128);
+    ctx.fillRect(160 - par, GROUND - 96, 56, 96);
+    ctx.fillStyle = "#d9a441";
+    ctx.fillRect(48 - par, GROUND - 108, 7, 9);
+    ctx.fillRect(64 - par, GROUND - 82, 7, 9);
+    ctx.fillRect(176 - par, GROUND - 76, 7, 9);
+    // 小路
+    ctx.fillStyle = "#232a40"; ctx.fillRect(0, GROUND, W, H - GROUND);
+    ctx.fillStyle = "#333b58"; ctx.fillRect(0, GROUND, W, 3);
+    // 世界道具（随 px 卷动）
+    const lx = 54 - this.px;                                  // 路灯
+    if (lx > -20 && lx < W) {
+      ctx.fillStyle = "#2b3247"; ctx.fillRect(lx + 5, GROUND - 62, 3, 62);
+      ctx.fillStyle = "#f0d890"; ctx.fillRect(lx, GROUND - 70, 13, 8);
+      ctx.fillStyle = "rgba(240,216,144,.14)"; ctx.fillRect(lx - 14, GROUND - 70, 40, 70);
+    }
+    const bx = 112 - this.px;                                 // 长椅
+    if (bx > -40 && bx < W) {
+      ctx.fillStyle = "#4a4038";
+      ctx.fillRect(bx, GROUND - 16, 34, 3);
+      ctx.fillRect(bx + 2, GROUND - 10, 3, 10); ctx.fillRect(bx + 29, GROUND - 10, 3, 10);
+      ctx.fillRect(bx, GROUND - 30, 3, 14);
+    }
+    const tx = 150 - this.px;                                 // 树
+    if (tx > -30 && tx < W) {
+      ctx.fillStyle = "#3a3026"; ctx.fillRect(tx + 4, GROUND - 26, 4, 26);
+      ctx.fillStyle = "#8a7a3a";
+      ctx.fillRect(tx - 6, GROUND - 40, 20, 10); ctx.fillRect(tx - 2, GROUND - 48, 14, 10); ctx.fillRect(tx + 2, GROUND - 54, 8, 8);
+    }
+    // 萤火虫
+    this.fire.forEach(f => {
+      const fx = ((f.x - this.px * .5) % W + W) % W;
+      const fy = f.y + Math.sin(t / 700 + f.p) * 6;
+      if (Math.sin(t / 300 + f.p * 2) > -.2) {
+        ctx.fillStyle = "#e8d878"; ctx.fillRect(fx, fy, 2, 2);
+        ctx.fillStyle = "rgba(232,216,120,.25)"; ctx.fillRect(fx - 1, fy - 1, 4, 4);
+      }
+    });
+    // 两个人并肩走（他在左，她在右，都朝右）
+    const walking = this.holding && !Dlg.active && this.phase === "walk" && !this.done;
+    const spr = !walking ? M_STAND : (Math.floor(t / 130) % 2 ? M_WALK1 : M_WALK2);
+    const bob = walking && Math.floor(t / 130) % 2 ? 1 : 0;
+    drawSprite(spr, 30, GROUND - CHAR_PH - bob, false);
+    drawSprite(H_STAND, 30 + CHAR_PW + 5, GROUND - CHAR_PH - bob, true);
+    if (walking) drawPixelHeart(40, GROUND - CHAR_PH - 14 + (Math.sin(t / 300) > 0 ? 0 : 1), 1, "#c96a7e");
+    // 表白时刻：两颗心慢慢靠近
+    if (this.phase === "heart" && !this.done) {
+      const ty = GROUND - 96;
+      ctx.fillStyle = "rgba(20,26,40,.55)"; ctx.fillRect(40, ty - 26, 136, 52);
+      ctx.strokeStyle = "rgba(245,240,230,.4)"; ctx.strokeRect(40.5, ty - 25.5, 135, 51);
+      ctx.fillStyle = "rgba(245,240,230,.35)"; ctx.fillRect(48, ty + 2, 120, 2);
+      ctx.fillStyle = "#e8a0b4"; ctx.fillRect(88, ty - 3, 40, 10);
+      const a = this.mx;
+      drawPixelHeart(108 - a, ty - 4, 2, "#c95a70");
+      drawPixelHeart(108 + a, ty - 4, 2, "#c95a70");
+      ctx.font = "8px sans-serif"; ctx.fillStyle = "#f5f0e6"; ctx.textAlign = "center";
+      ctx.fillText("两颗心靠近时，点一下屏幕", 108, ty + 20);
+    }
+  },
+  update(dt) {
+    if (this.done || Dlg.active) return;
+    if (this.phase === "walk") {
+      const move = (this.holding || keys.ArrowRight || keys.KeyD) ? 26 : 0;
+      this.px = Math.min(this.px + move * dt, this.pathEnd);
+      if (move) hintOff();
+      for (const w of this.wp) {
+        if (!w.done && this.px >= w.x) { w.done = true; Dlg.show(w.lines); break; }
+      }
+      if (this.px >= this.pathEnd) {
+        this.phase = "heart"; this.mt = .55;   // 初始偏移，避免一进来两颗心就是重合的
+        hintOff();                              // 画布内的提示框已说明玩法，避免与常驻提示条重叠
+        sfx.heart();
+      }
+    } else if (this.phase === "heart") {
+      this.mt += dt;
+      this.mx = Math.abs(Math.sin(this.mt * 1.8)) * 54;
+    }
+  },
+  pointer(type) {
+    if (this.done || Dlg.active) return;
+    if (this.phase === "heart") {
+      if (type !== "down") return;
+      if (this.mx <= 20) {
+        this.done = true; this.phase = "done"; hintOff();
+        sfx.jingle(); buzz([30, 60, 30]);
+        Dlg.show([
+          { who: "旁白", txt: "没有烟花，没有表白的套路。" },
+          { who: "陈家昊", txt: "情绪到了。我说：那就——在一起吧。" },
+          { who: "旁白", txt: "她说：好。" },
+          { who: "旁白", txt: "那天聊了什么，后来大部分都忘了。只记得路灯把两个影子拉得很长很长，挨得很近。" },
+          { who: "旁白", txt: "2016 年 11 月 6 日。从那个夜晚起，「我」变成了「我们」。" }
+        ], () => { saveLevel(4); awardShard("walk"); go("l3"); });
+      } else {
+        sfx.tap();
+        showToast("再等等——感情的事，急不来");
+      }
+      return;
+    }
+    if (type === "down") { this.holding = true; this.px = Math.min(this.px + 9, this.pathEnd); sfx.tap(); }
+    else this.holding = false;
+  }
+};
+
+/* ---- L4 雨夜摩托 ---- */
+SCENES.l3 = {
+  speed: 0, dist: 0, py: 0, vy: 0, obs: [], heartsArr: [], spawnT: 0, hp: 3, inv: 0, done: false,
+  rain: null, spin: 0, navIdx: 0, navT: 4, token: 0, totalDist: 2400,
+  enter(tok) {
+    this.token = tok;
+    this.speed = 0; this.dist = 0; this.py = 0; this.vy = 0; this.obs = []; this.heartsArr = []; this.spawnT = 1.2;
+    this.hp = 3; this.inv = 0; this.done = false; this.navIdx = 0; this.navT = 4;
+    this.rain = makeRain(70, 2.6);
+    Chip.mood("ride");
+    setLevel("第 4 关 · 雨夜摩托"); setHearts(3, 3);
+    $("#dist").classList.remove("hide");
+    Dlg.show([
+      { who: "陈家昊", txt: "有一晚要去很远的地方拿东西，雨大得路都看不清。" },
+      { who: "晓燕", txt: "她说：那我陪你。" },
+      { who: "旁白", txt: "那一路到底有多远，他后来一直说不清，只记得导航说了一遍又一遍。" },
+      { who: "旁白", txt: "点按屏幕跳跃，躲开水坑和石头。路上还有爱心，跳起来接住！" }
+    ], () => hint("点按屏幕跳跃 · 接住爱心", false));
+  },
+  jump() {
+    if (this.done || Dlg.active) return;
+    if (this.py === 0) { this.vy = -240; sfx.jump(); buzz(10); }
+  },
+  update(dt) {
+    if (this.done || Dlg.active) return;
+    this.speed = Math.min(this.speed + 8 * dt, 105);
+    this.dist += this.speed * dt;
+    $("#dist").textContent = "前方 " + Math.max(0, Math.round(this.totalDist - this.dist)) + "m";
+    // 跳跃
+    this.vy += 520 * dt; this.py += this.vy * dt;
+    if (this.py > 0) { this.py = 0; this.vy = 0; }
+    // 障碍 + 爱心
+    this.spawnT -= dt;
+    if (this.spawnT <= 0) {
+      this.spawnT = rand(.8, 1.5);
+      this.obs.push({ x: W + 20, kind: Math.random() < .6 ? "puddle" : "stone" });
+      if (Math.random() < .6) this.heartsArr.push({ x: W + 40 + rand(0, 50) });
+    }
+    this.obs.forEach(o => o.x -= this.speed * dt);
+    this.obs = this.obs.filter(o => o.x > -40);
+    for (let i = this.heartsArr.length - 1; i >= 0; i--) {
+      const h = this.heartsArr[i];
+      h.x -= this.speed * dt;
+      if (h.x < -20) { this.heartsArr.splice(i, 1); continue; }
+      if (this.py < -34 && Math.abs(h.x - 56) < 22) {
+        this.heartsArr.splice(i, 1);
+        stats.hearts++; sfx.heart(); buzz(15);
+        if (stats.hearts % 3 === 0) navSay(CONFIG.sweetLines[Math.floor(Math.random() * CONFIG.sweetLines.length)]);
+      }
+    }
+    // 碰撞
+    this.inv = Math.max(0, this.inv - dt);
+    if (this.inv <= 0) {
+      const hitX = 46, hitW = 26;
+      for (const o of this.obs) {
+        const ow = o.kind === "puddle" ? 26 : 9;
+        if (o.x < hitX + hitW && o.x + ow > hitX && this.py > -14) {
+          this.hp--; this.inv = 1.1; stats.bumps++; sfx.hit(); buzz(60); setHearts(this.hp, 3);
+          if (this.hp <= 0) {
+            this.hp = 3; setHearts(3, 3);
+            Dlg.show([{ who: "晓燕", txt: CONFIG.hitLines[Math.floor(Math.random() * CONFIG.hitLines.length)] }]);
+          }
+          break;
+        }
+      }
+    }
+    // 导航语音
+    this.navT -= dt;
+    if (this.navT <= 0 && this.navIdx < CONFIG.navLines.length) {
+      navSay(CONFIG.navLines[this.navIdx++]);
+      this.navT = rand(4, 5.5);
+    }
+    // 到达
+    if (this.dist >= this.totalDist) {
+      this.done = true; this.speed = 0;
+      navSay("已到达目的地 · 这段路，导航只说一次，我们记一辈子", 3200);
+      sfx.jingle(); saveLevel(5);
+      awardShard("l3");
+      const lines = [
+        { who: "旁白", txt: "到了。雨还在下，两个人都在笑。" },
+        { who: "晓燕", txt: "我记着的不是雨有多大。是他一路骑得很稳，后背很暖。" },
+        { who: "陈家昊", txt: "那晚的路我早忘了。但愿意在那样的大雨里坐在后座的人——我记了一辈子。" }
+      ];
+      if (stats.hearts > 0) lines.splice(1, 0, { who: "晓燕", txt: "路上捡了 " + stats.hearts + " 颗爱心？都归你了。" });
+      Dlg.show(lines, () => go("l4"));
+    }
+  },
+  draw(t) {
+    const rt = GROUND - 86;   // 路面顶
+    this.spin = Math.floor(t / 90) % 2;
+    ctx.fillStyle = "#1b2030"; ctx.fillRect(0, 0, W, rt);
+    ctx.fillStyle = "#232a40"; ctx.fillRect(0, rt - 90, W, 90);
+    // 远景楼
+    const wrap = v => ((v % (W + 80)) + (W + 80)) % (W + 80) - 80;
+    ctx.fillStyle = "#1e2436";
+    ctx.fillRect(wrap(0 - this.dist * .4), rt - 130, 40, 130);
+    ctx.fillRect(wrap(90 - this.dist * .4), rt - 110, 30, 110);
+    ctx.fillRect(wrap(170 - this.dist * .4), rt - 140, 46, 140);
+    drawStars(t);
+    // 路面
+    ctx.fillStyle = "#2e2f36"; ctx.fillRect(0, rt, W, H - rt);
+    ctx.fillStyle = "#3a3b44"; ctx.fillRect(0, rt, W, 3);
+    ctx.fillStyle = "#d9a441";                                        // 跑道虚线
+    for (let i = 0; i < 8; i++) {
+      const dx = ((i * 40) - (this.dist * 1.4) % 40 + 320) % (W + 40) - 20;
+      ctx.fillRect(dx, rt + 42, 16, 2);
+    }
+    this.obs.forEach(o => {
+      const oy = GROUND + 2;
+      if (o.kind === "puddle") drawPuddle(o.x, oy, 26); else drawStone(o.x + 8, oy);
+    });
+    // 爱心收集物
+    this.heartsArr.forEach(h => {
+      drawPixelHeart(h.x, GROUND - 62 + Math.sin(t / 250 + h.x) * 3, 2, "#e88a9e");
+    });
+    drawRain(this.rain);
+    // 摩托 + 两人
+    const baseY = GROUND + 2 + this.py;
+    if (!(this.inv > 0 && Math.floor(t / 80) % 2)) {
+      drawMoto(40, baseY, this.spin);
+      drawSprite(RIDE_H, 44, baseY - 24, false);
+      drawSprite(RIDE_M, 58, baseY - 24, false);
+    }
+    // 速度线
+    if (this.speed > 60) {
+      ctx.fillStyle = "rgba(245,240,230,.12)";
+      for (let i = 0; i < 4; i++) ctx.fillRect(((i * 67 + t * .4) % (W + 40)) - 20, 90 + i * 34, 22, 1);
+    }
+  },
+  pointer(type) { if (type === "down") this.jump(); }
+};
+
+/* ---- L4 求婚（长按读信 + 接戒指） ---- */
+SCENES.l4 = {
+  t: 0, phase: "hold", holding: false, progress: 0, done: false, tears: [], petals: [],
+  mt: 0, mx: 108, token: 0, ringY: 0,
+  lines: [
+    "从申请书上的多看了两眼，",
+    "到一把故意的伞，到雨夜里坚持坐在后座的人，",
+    "十年，好像每一步都很自然，又好像每一步都是注定。",
+    "往后的房子、沙发、午后的阳光，我都想和你一起。",
+    "所以——嫁给我，好吗？"
+  ],
+  shown: 0,
+  enter(tok) {
+    this.token = tok; this.t = 0; this.progress = 0; this.done = false; this.shown = 0;
+    this.phase = "hold"; this.mt = 0; this.mx = 108;
+    this.tears = []; this.petals = []; this.holding = false;
+    Chip.mood("love");
+    setLevel("第 5 关 · 求婚");
+    $("#l4bar").classList.add("show");
+    $("#l4bar i").style.width = "0";
+    Dlg.show([
+      { who: "旁白", txt: "时间快进到拍婚纱照那天。" },
+      { who: "旁白", txt: "她化好妆，穿着婚纱，从门里走出来。" },
+      { who: "陈家昊", txt: "我在心里排练了一百遍的话，就藏在接下来的字里。" },
+      { who: "旁白", txt: "长按屏幕，一字一句读完它。读完之后——把戒指接稳。" }
+    ], () => hint("长按屏幕，读出求婚词", true));
+  },
+  update(dt) {
+    this.t += dt;
+    if (this.done || Dlg.active) return;
+    if (this.phase === "hold") {
+      if (this.holding || keys.Space) {
+        this.progress = Math.min(1, this.progress + dt / 4.5);
+        $("#l4bar i").style.width = (this.progress * 100) + "%";
+        const should = Math.min(5, Math.floor(this.progress * 5) + 1);
+        if (should > this.shown) {
+          this.shown = should;
+          $("#dlg").classList.add("show", "no-next");
+          $("#dlg-who").textContent = "陈家昊";
+          $("#dlg-who").style.color = WHO_COLOR["陈家昊"];
+          $("#dlg-txt").textContent = this.lines.slice(0, should).join("\n");
+          sfx.tap();
+        }
+        if (this.progress >= 1) {
+          this.phase = "ring"; this.mt = 0;
+          $("#l4bar").classList.remove("show");
+          hintOff();
+          hint("话读完了——戒指荡到粉色区域时，点一下屏幕，把它接稳！", true);
+        }
+      }
+    } else if (this.phase === "ring") {
+      this.mt += dt;
+      this.mx = 108 + Math.sin(this.mt * 2.6) * 56;
+    }
+  },
+  tryRing() {
+    if (Math.abs(this.mx - 108) <= 24) {
+      this.finish();
+    } else {
+      sfx.hit(); buzz(40);
+      showToast(CONFIG.ringMissLines[Math.floor(Math.random() * CONFIG.ringMissLines.length)]);
+    }
+  },
+  finish() {
+    this.done = true; this.phase = "done"; hintOff();
+    $("#l4bar").classList.remove("show");
+    sfx.tear(); buzz([30, 50, 30]);
+    for (let i = 0; i < 10; i++) this.tears.push({ x: 118 + rand(-6, 14), y: GROUND - 66 + rand(-10, 6), v: rand(14, 26) });
+    const tk = this.token;
+    setTimeout(() => {
+      if (tk !== this.token || scene !== SCENES.l4) return;
+      for (let i = 0; i < 24; i++) this.petals.push({ x: rand(0, W), y: rand(-80, 0), v: rand(16, 30), s: rand(0, 6) });
+      saveLevel(6);
+      awardShard("l4");
+      Dlg.show([
+        { who: "旁白", txt: "她哭了。然后，说了愿意。" },
+        { who: "晓燕", txt: "读到第三句，我就哭了。当年多看我两眼的那个男生，今天要娶我了。" },
+        { who: "旁白", txt: "最后一关，在婚礼现场——等你亲自到场。" }
+      ], () => showFinale());
+    }, 900);
+  },
+  draw(t) {
+    const ft = GROUND - 6;   // 地板顶
+    ctx.fillStyle = "#f2d9b0"; ctx.fillRect(0, 0, W, 120);
+    ctx.fillStyle = "#eec3a0"; ctx.fillRect(0, 120, W, Math.max(0, ft - 100 - 120));
+    ctx.fillStyle = "#d98a6a"; ctx.fillRect(0, ft - 100, W, 100);
+    ctx.fillStyle = "#caa27a"; ctx.fillRect(0, ft, W, H - ft);   // 地板
+    ctx.fillStyle = "#b98f68"; ctx.fillRect(0, ft, W, 3);
+    // 门（右）
+    ctx.fillStyle = "#a86a4e"; ctx.fillRect(W - 74, ft - 180, 54, 180);
+    ctx.fillStyle = "#8a5038"; ctx.fillRect(W - 66, ft - 170, 38, 170);
+    ctx.fillStyle = "#f7f3ea"; ctx.fillRect(W - 60, ft - 90, 26, 90);  // 门缝光
+    // 求婚的两人：他在左（右向），她在门旁
+    const walking = this.t < 2 && !this.done;
+    drawSprite(M_STAND, 40, GROUND - CHAR_PH, false);
+    const sheX = walking ? W - 60 + Math.max(0, (2 - this.t)) * 10 : W - 60;
+    drawSprite(H_WED, sheX, GROUND - CHAR_PH, false);
+    // 接戒指小游戏
+    if (this.phase === "ring" && !this.done) {
+      const ty = GROUND - 96;
+      // 提示框底
+      ctx.fillStyle = "rgba(20,26,40,.55)"; ctx.fillRect(40, ty - 26, 136, 52);
+      ctx.strokeStyle = "rgba(245,240,230,.4)"; ctx.strokeRect(40.5, ty - 25.5, 135, 51);
+      // 轨道
+      ctx.fillStyle = "rgba(245,240,230,.35)"; ctx.fillRect(48, ty, 120, 4);
+      // 粉色目标区
+      ctx.fillStyle = "#e8a0b4"; ctx.fillRect(86, ty - 3, 44, 10);
+      // 戒指（金色圆环）
+      const mx = this.mx;
+      ctx.fillStyle = PAL.G;
+      ctx.fillRect(mx - 5, ty - 9, 10, 2);
+      ctx.fillRect(mx - 5, ty + 9, 10, 2);
+      ctx.fillRect(mx - 7, ty - 7, 2, 5);
+      ctx.fillRect(mx - 7, ty + 3, 2, 5);
+      ctx.fillRect(mx + 5, ty - 7, 2, 5);
+      ctx.fillRect(mx + 5, ty + 3, 2, 5);
+      // 钻
+      ctx.fillStyle = "#f7f3ea"; ctx.fillRect(mx - 2, ty - 13, 4, 4);
+      ctx.font = "8px sans-serif"; ctx.fillStyle = "#f5f0e6"; ctx.textAlign = "center";
+      ctx.fillText("点一下，接住它", 108, ty + 20);
+    }
+    // 泪滴
+    ctx.fillStyle = "#9fc4e8";
+    this.tears.forEach(d => { ctx.fillRect(d.x, d.y, 2, 3); d.y += d.v * .016; });
+    // 花瓣
+    this.petals.forEach(p => {
+      ctx.fillStyle = "#e8b8c0";
+      ctx.fillRect(p.x + Math.sin(t / 300 + p.s) * 6, p.y, 3, 2);
+      p.y += p.v * .016;
+    });
+  },
+  pointer(type, x, y) {
+    if (this.done || Dlg.active) return;
+    if (this.phase === "ring") { if (type === "down") this.tryRing(); return; }
+    this.holding = type === "down";
+  }
+};
+
+/* 结局背景（finale 显示时画布继续动） */
+SCENES.finale = {
+  enter() { setLevel("通关"); Chip.mood("love"); },
+  draw(t) {
+    ctx.fillStyle = "#141a28"; ctx.fillRect(0, 0, W, H);
+    drawStars(t);
+    // 像素烟花
+    const fy = 70 + Math.sin(t / 900) * 8;
+    ctx.fillStyle = "#d9a441";
+    ctx.fillRect(40, fy, 2, 2); ctx.fillRect(170, fy + 30, 2, 2);
+    ctx.fillStyle = "#e8a0b4";
+    ctx.fillRect(60, fy + 50, 2, 2); ctx.fillRect(150, fy - 20, 2, 2);
+    ctx.fillStyle = "#1e2436"; ctx.fillRect(0, GROUND - 16, W, H - GROUND + 16);
+    drawSprite(M_STAND, 80, GROUND - CHAR_PH, false);
+    drawSprite(H_WED, 104, GROUND - CHAR_PH, false);
+    const bob = Math.sin(t / 400) > 0 ? 0 : 1;
+    drawPixelHeart(96, GROUND - CHAR_PH - 12 + bob, 2, "#c96a7e");
+  }
+};
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000);
+  last = now;
+  if (scene) {
+    if (scene.update) scene.update(dt);
+    if (scene.draw) scene.draw(now);
+    else if (scene === SCENES.title) drawTitleBG(now);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================= 输入路由（触控 + 鼠标双通道，微信全兼容） ================= */
+function toInternal(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / viewScale, y: (e.clientY - r.top) / viewScale };
+}
+function press(x, y) {
+  audio();
+  if (!$("#invite").classList.contains("hide")) return;             // 邀请函可见时不接管
+  if (!$("#title").classList.contains("hide")) return;
+  if (!$("#finale").classList.contains("hide")) return;
+  if (Dlg.active) { Dlg.tap(); sfx.tap(); return; }
+  if (!scene || !scene.pointer) return;
+  scene.pointer("down", x, y);
+}
+function release() {
+  if (!$("#invite").classList.contains("hide")) return;
+  if (scene && scene.pointer && !Dlg.active) scene.pointer("up");
+}
+
+/* 鼠标（桌面） */
+cv.addEventListener("mousedown", e => { const p = toInternal(e); press(p.x, p.y); });
+window.addEventListener("mouseup", release);
+
+/* 触控（手机，preventDefault 防微信下拉刷新 / 长按菜单 / 双击缩放） */
+cv.addEventListener("touchstart", e => {
+  if (!$("#invite").classList.contains("hide")) return;
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const p = toInternal(t);
+  press(p.x, p.y);
+}, { passive: false });
+window.addEventListener("touchend", () => {
+  if (!$("#invite").classList.contains("hide")) return;
+  release();   // 注意：这里不能 preventDefault，否则按钮的 click 不会被合成，所有按钮在手机上全部失灵
+}, { passive: true });
+window.addEventListener("touchcancel", release);
+/* 游戏中拦截整页滚动/下拉（邀请函页面恢复默认滚动） */
+document.addEventListener("touchmove", e => {
+  if (!$("#invite").classList.contains("hide")) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+/* 长按菜单 / 双击缩放 */
+document.addEventListener("contextmenu", e => {
+  if (!$("#invite").classList.contains("hide")) return;
+  e.preventDefault();
+});
+document.addEventListener("dblclick", e => {
+  if (!$("#invite").classList.contains("hide")) return;
+  e.preventDefault();
+});
+
+window.addEventListener("keydown", e => {
+  if (["Space", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.code) && $("#invite").classList.contains("hide")) e.preventDefault();
+  keys[e.code] = true;
+  if (e.code === "Space" && scene === SCENES.l3 && !Dlg.active) SCENES.l3.jump();
+});
+window.addEventListener("keyup", e => { keys[e.code] = false; });
+
+/* ================= 进度 ================= */
+function saveLevel(n) { store.set("wg_level", Math.max(n, +store.get("wg_level") || 0)); }
+
+/* ================= 流程按钮 ================= */
+function newGame() {
+  audio(); sfx.tap();
+  resetStats(); resetShards();
+  store.set("wg_level", 0);
+  $("#title").classList.add("hide");
+  $("#finale").classList.add("hide");
+  startGameMusic();
+  go("l1");
+}
+$("#btn-start").addEventListener("click", newGame);
+$("#btn-restart").addEventListener("click", newGame);
+$("#btn-continue").addEventListener("click", () => {
+  audio(); sfx.tap(); $("#title").classList.add("hide");
+  const lv = +store.get("wg_level") || 1;
+  if (lv >= 6) { showInvite(); return; }
+  const map = { 1: "l1", 2: "l2", 3: "walk", 4: "l3", 5: "l4" };
+  startGameMusic();
+  go(map[Math.min(5, Math.max(1, lv))]);
+});
+$("#btn-invite").addEventListener("click", () => { sfx.jingle(); showInvite(); });
+$("#btn-replay").addEventListener("click", newGame);
+$("#btn-replay2").addEventListener("click", () => {
+  $("#invite").classList.add("hide");
+  document.body.classList.add("playing");
+  document.body.classList.remove("scrollable");
+  $("#finale").classList.add("hide");
+  newGame();
+});
+$("#skip").addEventListener("click", () => {
+  audio(); stats.skipped = true; saveLevel(5); showInvite();
+});
+
+function renderFinaleExtras() {
+  const got = getShards();
+  $("#fin-shards").innerHTML = SHARDS.map(s =>
+    '<div class="f-shard' + (got.indexOf(s.id) >= 0 ? " got" : "") + '">' + s.icon + '</div>'
+  ).join("");
+  if (stats.skipped) {
+    $("#fin-stats").textContent = "（直接来看邀请函的聪明人 ✦ 婚礼现场见）";
+  } else {
+    const secs = Math.max(1, Math.round((Date.now() - stats.t0) / 1000));
+    $("#fin-stats").textContent = "翻错 " + stats.flips + " 张申请表 · 摔车 " + stats.bumps + " 次 · 捡到 " +
+      stats.hearts + " 颗爱心 · 用时 " + Math.floor(secs / 60) + " 分 " + (secs % 60) + " 秒";
+  }
+}
+function showFinale() {
+  Chip.stop();
+  $("#music-btn").classList.remove("playing");
+  scene = SCENES.finale;
+  renderFinaleExtras();
+  $("#finale").classList.remove("hide");
+}
+function showInvite() {
+  Chip.stop();
+  $("#music-btn").classList.remove("playing");
+  if (CONFIG.music) {
+    const bgm = $("#bgm");
+    bgm.src = CONFIG.music;
+    bgm.play().catch(() => {});
+    $("#music-btn").classList.add("show", "playing");
+  } else {
+    $("#music-btn").classList.remove("show");
+  }
+  scene = SCENES.finale;
+  $("#finale").classList.add("hide");
+  $("#invite").classList.remove("hide");
+  document.body.classList.remove("playing");
+  document.body.classList.add("scrollable");
+  window.scrollTo(0, 0);
+}
+
+/* ============================================================
+   结局邀请函逻辑（复用之前的邀请函组件）
+============================================================ */
+const [dPart, tPart] = CONFIG.date.split(" ");
+const [Y, M, D] = dPart.split("-").map(Number);
+const [hh, mm] = tPart.split(":").map(Number);
+const WED = new Date(Y, M - 1, D, hh, mm);
+const WEEK = "日一二三四五六";
+const CN = "〇一二三四五六七八九";
+const cnNum = n => String(n).split("").map(c => CN[+c]).join("");
+const cnMonth = m => m === 10 ? "十" : m < 10 ? CN[m] : m === 11 ? "十一" : "十二";
+const cnDay = d => {
+  const t = "一二三四五六七八九";
+  if (d <= 10) return d === 10 ? "十" : t[d - 1];
+  if (d < 20) return "十" + t[d - 11];
+  if (d === 20) return "二十";
+  if (d < 30) return "二十" + t[d - 21];
+  if (d === 30) return "三十";
+  return "三十" + t[d - 31];
+};
+const dayPeriod = h => h < 11 ? "上午" : h < 13 ? "中午" : h < 17 ? "下午" : "晚上";
+
+document.title = CONFIG.groom + " & " + CONFIG.bride + " · 十年副本";
+$("#t-names").textContent = (CONFIG.groom[0] || "") + " & " + (CONFIG.bride[0] || "");
+$("#i-names").innerHTML = CONFIG.groom + '<span class="amp">&</span>' + CONFIG.bride;
+$("#i-date").textContent = Y + "." + p2(M) + "." + p2(D) + " · 星期" + WEEK[WED.getDay()] + " · " + tPart;
+$("#i-den").textContent = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][M - 1] + " " + p2(D) + ", " + Y;
+$("#i-dzh").textContent = cnNum(Y) + "年" + cnMonth(M) + "月" + cnDay(D) + "日 · 星期" + WEEK[WED.getDay()] + " · " + dayPeriod(hh) + " " + tPart;
+$("#i-venue").textContent = CONFIG.venue;
+$("#i-addr").textContent = CONFIG.address;
+$("#i-hero-img").src = CONFIG.heroImg;
+$("#i-nav").href = "https://uri.amap.com/search?keyword=" + encodeURIComponent(CONFIG.mapKeyword || CONFIG.venue) +
+                   "&city=" + encodeURIComponent(CONFIG.city) + "&src=wedding&callnative=1";
+
+/* 称呼个性化：信封上的名字 → 信纸抬头 */
+$("#letter-date").textContent = cnNum(Y) + "年" + cnMonth(M) + "月" + cnDay(D) + "日";
+function applyGuestName(n) {
+  const name = (n || "").trim();
+  $("#letter-name").textContent = name || "你";
+  if ($("#guest-name").value !== name) $("#guest-name").value = name;
+  store.set("wg_guest", name);
+}
+applyGuestName(store.get("wg_guest") || "");
+$("#guest-name").addEventListener("input", e => applyGuestName(e.target.value));
+
+/* 拆信 */
+function openLetter() {
+  if ($("#envelope-sec").classList.contains("opened")) return;
+  audio(); sfx.flip();
+  $("#envelope-sec").classList.add("opened");
+  setTimeout(() => $("#letter-body").classList.add("show"), 350);
+  setTimeout(() => { $("#envelope-sec").style.display = "none"; $("#invite").scrollTop = 0; }, 1000);
+}
+$("#seal").addEventListener("click", openLetter);
+$("#envelope").addEventListener("click", e => { if (e.target.id !== "guest-name") openLetter(); });
+
+/* 新人彩蛋：只有他们俩知道的日子 */
+$("#egg-hint").addEventListener("click", () => {
+  $("#egg-lock").classList.remove("hide");
+  $("#egg-ans").focus();
+});
+function tryEgg() {
+  const v = ($("#egg-ans").value || "").replace(/\D/g, "");
+  if (["1116", "1106", "2016116", "20161106"].indexOf(v) >= 0) {
+    $("#egg-lock").classList.add("hide");
+    $("#egg-page").classList.remove("hide");
+    sfx.jingle();
+  } else {
+    showToast("不对哦——再想想 2016 年秋天的那个夜晚");
+  }
+}
+$("#egg-unlock").addEventListener("click", tryEgg);
+$("#egg-ans").addEventListener("keydown", e => { if (e.key === "Enter") tryEgg(); });
+
+/* 倒计时 */
+["天","时","分","秒"].forEach(l => {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  cell.innerHTML = '<div class="n">--</div><div class="l">' + l + '</div>';
+  $("#i-cd").appendChild(cell);
+});
+const cdNums = document.querySelectorAll("#i-cd .n");
+let cdTimer;
+function tick() {
+  const diff = WED - Date.now();
+  if (diff <= 0) { clearInterval(cdTimer); $("#i-cd").innerHTML = '<div style="width:100%;font-size:14px;letter-spacing:.5em;text-indent:.5em;opacity:.95;padding-top:12px">我们结婚啦</div>'; return; }
+  const s = Math.floor(diff / 1000);
+  const v = [Math.floor(s / 86400), Math.floor(s % 86400 / 3600), Math.floor(s % 3600 / 60), s % 60];
+  cdNums.forEach((n, i) => n.textContent = p2(v[i]));
+}
+tick(); cdTimer = setInterval(tick, 1000);
+
+/* ICS 日历 */
+const endDate = new Date(WED.getTime() + 3 * 3600 * 1000);
+const ics = [
+  "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wedding-game//CN", "BEGIN:VEVENT",
+  "UID:wedding-" + Y + p2(M) + p2(D) + "@invite",
+  "DTSTART:" + Y + p2(M) + p2(D) + "T" + p2(hh) + p2(mm) + "00",
+  "DTEND:" + endDate.getFullYear() + p2(endDate.getMonth() + 1) + p2(endDate.getDate()) + "T" + p2(endDate.getHours()) + p2(endDate.getMinutes()) + "00",
+  "SUMMARY:" + CONFIG.groom + " & " + CONFIG.bride + " · 婚礼",
+  "LOCATION:" + CONFIG.address,
+  "END:VEVENT", "END:VCALENDAR"
+].join("\r\n");
+$("#i-ics").addEventListener("click", e => {
+  e.preventDefault();
+  const a = document.createElement("a");
+  a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  a.download = "婚礼邀请.ics";
+  a.click();
+});
+
+/* 回执 */
+let attend = true, count = 2;
+const yBtn = $("#att-yes"), nBtn = $("#att-no");
+yBtn.addEventListener("click", () => { attend = true; yBtn.classList.add("sel"); nBtn.classList.remove("sel"); });
+nBtn.addEventListener("click", () => { attend = false; nBtn.classList.add("sel"); yBtn.classList.remove("sel"); });
+$("#cnt-minus").addEventListener("click", () => { count = Math.max(1, count - 1); $("#cnt-num").textContent = count; });
+$("#cnt-plus").addEventListener("click", () => { count = Math.min(20, count + 1); $("#cnt-num").textContent = count; });
+$("#rsvp-copy").addEventListener("click", async () => {
+  const name = $("#rsvp-name").value.trim();
+  if (name) applyGuestName(name);   // RSVP 里的称呼同步到信纸抬头
+  const msg = attend
+    ? "【婚礼回执】" + (name || "朋友") + "：如期出席，共" + count + "人。"
+    : "【婚礼回执】" + (name || "朋友") + "：遗憾缺席，祝新婚快乐！";
+  try { await navigator.clipboard.writeText(msg); }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = msg; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+  }
+  showToast("已复制，请把回执发给我们");
+});
+
+/* 音乐按钮：游戏中控制 8-bit 配乐，邀请函中控制背景音乐 mp3 */
+$("#music-btn").addEventListener("click", () => {
+  const inInvite = !$("#invite").classList.contains("hide");
+  if (inInvite) {
+    if (!CONFIG.music) return;
+    const bgm = $("#bgm"), btn = $("#music-btn");
+    if (bgm.paused) { bgm.play().catch(() => {}); btn.classList.add("playing"); }
+    else { bgm.pause(); btn.classList.remove("playing"); }
+  } else {
+    userMuted = !userMuted;
+    if (Chip.on) { Chip.stop(); $("#music-btn").classList.remove("playing"); }
+    else { Chip.start(); $("#music-btn").classList.add("playing"); }
+  }
+});
+
+/* 启动 */
+go("title");
+</script>
+</body>
+</html>
