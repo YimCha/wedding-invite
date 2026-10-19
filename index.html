@@ -289,7 +289,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
       <div class="stamp"><div class="ico">☂️</div><div class="yr">2016 · 秋</div><div class="cap">故意没带的<br>那把伞</div></div>
       <div class="stamp"><div class="ico">🌙</div><div class="yr">2016.11.6</div><div class="cap">路灯下的<br>两个影子</div></div>
       <div class="stamp"><div class="ico">🏍️</div><div class="yr">一个雨夜</div><div class="cap">大雨里的<br>后座</div></div>
-      <div class="stamp"><div class="ico">💍</div><div class="yr">2026</div><div class="cap">她说<br>愿意</div></div>
+      <div class="stamp"><div class="ico">💍</div><div class="yr">2023</div><div class="cap">她说<br>愿意</div></div>
     </div>
   </section>
 
@@ -377,27 +377,44 @@ const CONFIG = {
   /* --- 结局邀请函照片（AI 占位，可换真实照片路径） --- */
   heroImg: img("Editorial wedding film photography, young asian couple back view walking hand in hand on open road at golden dusk, soft warm backlight, 35mm film grain, muted earthy tones, minimalist timeless romantic mood, no text"),
 
-  /* --- 搞笑错误申请书名字（L1 翻卡） --- */
-  wrongNames: ["王铁柱", "李狗蛋", "赵铁英", "刘二狗", "张翠花", "孙悟空", "朱八戒", "尼古拉斯·赵四", "周一鸣", "吴彦祖（自称）", "外卖清单"],
+  /* --- 错误申请书：名字 + 申请书上的小批注（L1 翻卡，批注让每份都有故事） --- */
+  wrongNames: [
+    { name: "王铁柱", quip: "报名表上写：能扛一辩" },
+    { name: "李狗蛋", quip: "笔名吧，一定是笔名" },
+    { name: "赵铁英", quip: "字很铁，人应该也很铁" },
+    { name: "刘二狗", quip: "爱好栏写着：吃饭" },
+    { name: "张翠花", quip: "照片比名字温柔" },
+    { name: "孙悟空", quip: "特长：七十二变（没人信）" },
+    { name: "朱八戒", quip: "简历上全是吃的" },
+    { name: "尼古拉斯·赵四", quip: "名字比一辩稿还长" },
+    { name: "周一鸣", quip: "看起来就很能言善辩" },
+    { name: "吴彦祖（自称）", quip: "本人应该不在场" },
+    { name: "外卖清单", quip: "背面写着：黄焖鸡×2" }
+  ],
   wrongLines: [
     "这字写得…先淘汰他。", "这位同学潜力不错，但不是她。", "翻到一张写满情诗的？先存下来当把柄。",
     "不是她，继续翻！", "这张连名字都没写，帮辩论队省个名额。", "别翻了别翻了，就在旁边那张！"
   ],
 
-  /* --- L3 导航语音 --- */
-  navLines: [
-    "前方500米，请保持直行", "雨太大了，导航都开始结巴了", "您已偏航——不，您没有，是地图慌了",
-    "已重新规划路线", "前方路面湿滑，请稳住", "再坚持一下，快到了"
+  /* --- L3 导航语音（按路程分段：市区→国道→泥路） --- */
+  navCity: [
+    "前面路口右转", "这段车多，骑慢一点"
+  ],
+  navRoad: [
+    "上国道了，开稳一点", "前面没灯了，靠中间走", "哎，偏航了？……重新规划路线了", "雨太大了，屏幕都看不清了"
+  ],
+  navMud: [
+    "这段是泥路！抓稳了", "刚才好险……没事，继续", "就快到了，坚持住"
   ],
 
   /* --- L3 摔车后她的安慰 --- */
   hitLines: [
-    "她拍拍你的肩：慢点，我陪你。", "她笑着扶你：又摔？起来，再来。", "她说：别急，雨总会停的。"
+    "慢点，我陪你。", "又摔了？起来，再来。", "别急，雨总会停的。"
   ],
 
   /* --- L3 捡爱心时她说的话 --- */
   sweetLines: [
-    "她说：抱紧了。", "她说：到了给你买热奶茶。", "她说：你看，雨里也有星星。"
+    "抱紧了。", "回家给你买热奶茶。", "你看，雨里也有星星。"
   ],
 
   /* --- L4 戒指没接稳 --- */
@@ -793,7 +810,7 @@ function drawStone(x, y) {
 }
 
 /* ================= 对话系统 ================= */
-const WHO_COLOR = { "陈家昊": "#a34a2e", "晓燕": "#8a4a5e", "她": "#8a4a5e", "旁白": "#8a8072" };
+const WHO_COLOR = { "他": "#a34a2e", "她": "#8a4a5e", "旁白": "#8a8072" };
 const Dlg = {
   active: false, lines: [], idx: 0, txt: "", pos: 0, typing: false, timer: null, onDone: null,
   show(lines, onDone) {
@@ -960,62 +977,103 @@ function drawTitleBG(t) {
 }
 
 /* ---- L1 招新找名字 ---- */
+/* ---- L1 多看两眼：软木板上的十二份申请书（翻牌找出她的那一份） ---- */
 SCENES.l1 = {
-  cards: [], sheIdx: 0, found: false, wrongCount: 0, token: 0, shakeT: 0,
-  enter(tok) {
-    this.token = tok; this.found = false; this.wrongCount = 0; this.shakeT = 0;
-    setLevel("第 1 关 · 招新找名字");
+  cards: [], sheIdx: 0, found: false, wrongCount: 0, shakeT: 0, token: 0,
+  CW: 42, CH: 52, GX: 10, GY: 6, Y0: 42,
+  enter(arg, tok) {
+    this.token = tok;
+    this.found = false; this.wrongCount = 0; this.shakeT = 0;
+    setLevel("第 1 关 · 招新");
     Chip.mood("day");
     $("#title").classList.add("hide");
     this.sheIdx = Math.floor(Math.random() * 12);
-    const names = CONFIG.wrongNames.slice().sort(() => Math.random() - .5);
+    const pool = CONFIG.wrongNames.slice().sort(() => Math.random() - .5);
     this.cards = [];
-    for (let i = 0; i < 12; i++) this.cards.push({ open: false, name: names[i - (i > this.sheIdx ? 1 : 0)] || "同学", she: i === this.sheIdx });
-    hint("在申请书里找出「她」的那份", false);
+    for (let i = 0; i < 12; i++) {
+      const p = i > this.sheIdx ? pool[i - 1] : pool[i];
+      this.cards.push({ open: false, nm: (p && p.name) || "同学", quip: (p && p.quip) || "字迹很认真", she: i === this.sheIdx });
+    }
     Dlg.show([
-      { who: "旁白", txt: "2016 年秋，大学辩论队招新。" },
-      { who: "陈家昊", txt: "我在一叠申请书里翻来翻去。翻到一份，名字和照片，都让人多看了两眼。" },
-      { who: "旁白", txt: "任务：在下面找出「她」的那份申请书" }
-    ]);
+      { who: "旁白", txt: "2016 年秋，系辩论队招新。桌上堆着一摞申请书。" },
+      { who: "他", txt: "本来只是例行公事，一页页翻过去——直到看见其中一份。" },
+      { who: "他", txt: "说不上哪里不一样。就是……多看了两眼。" }
+    ], () => {
+      if (sceneToken !== tok) return;
+      hint("在申请书里找出「她」的那一份", true);
+    });
   },
   cardRect(i) {
-    const cw = 36, ch = 46, gx = 8, gy = 8, x0 = (W - (cw * 3 + gx * 2)) / 2, y0 = 58;
-    return { x: x0 + (i % 3) * (cw + gx), y: y0 + Math.floor(i / 3) * (ch + gy), w: cw, h: ch };
+    const x0 = (W - (this.CW * 3 + this.GX * 2)) / 2;
+    return { x: x0 + (i % 3) * (this.CW + this.GX), y: this.Y0 + Math.floor(i / 3) * (this.CH + this.GY), w: this.CW, h: this.CH };
+  },
+  _victory() {
+    hintOff();
+    const tk = this.token;
+    Dlg.show([
+      { who: "旁白", txt: "就是这份。" },
+      { who: "她", txt: "其实面试那天，我就注意到你了——有个男生，看什么都特别认真。" },
+      { who: "旁白", txt: "再后来，QQ 上总是她先发来消息。" }
+    ], () => { if (sceneToken === tk) go("l2"); });
+  },
+  update(dt) {
+    if (this.shakeT > 0) this.shakeT = Math.max(0, this.shakeT - dt * 1000);
   },
   draw(t) {
     ctx.save();
-    if (this.shakeT > 0) { this.shakeT -= 16; ctx.translate(Math.sin(t / 20) * 2 * Math.min(1, this.shakeT / 200), 0); }
-    ctx.fillStyle = "#e8dcc4"; ctx.fillRect(-4, 0, W + 8, H);      // 室内墙
-    ctx.fillStyle = "#d8c8a8"; ctx.fillRect(16, 36, W - 32, 232);  // 软木板
-    ctx.strokeStyle = "rgba(43,39,34,.18)"; ctx.strokeRect(16.5, 36.5, W - 33, 231);
-    ctx.fillStyle = "#8a6a44"; ctx.fillRect(-4, GROUND - 54, W + 8, H - GROUND + 54); // 木桌
+    if (this.shakeT > 0) ctx.translate(Math.sin(t / 20) * 2.5 * Math.min(1, this.shakeT / 200), 0);
+    /* 室内墙 + 软木板 + 木桌 */
+    ctx.fillStyle = "#e8dcc4"; ctx.fillRect(-4, 0, W + 8, H);
+    ctx.fillStyle = "#d8c8a8"; ctx.fillRect(16, 30, W - 32, 252);
+    ctx.strokeStyle = "rgba(43,39,34,.18)"; ctx.strokeRect(16.5, 30.5, W - 33, 251);
+    ctx.fillStyle = "#8a6a44"; ctx.fillRect(-4, GROUND - 54, W + 8, H - GROUND + 54);
     ctx.fillStyle = "#7a5c3a"; ctx.fillRect(-4, GROUND - 54, W + 8, 4);
+
+    /* 十二份申请书 */
     this.cards.forEach((c, i) => {
       const r = this.cardRect(i);
       ctx.fillStyle = "#1d1a16"; ctx.fillRect(r.x + 2, r.y + 3, r.w, r.h);
       ctx.fillStyle = c.open ? (c.she ? "#fbe9dd" : "#efe8d8") : "#faf6ec";
       ctx.fillRect(r.x, r.y, r.w, r.h);
-      ctx.strokeStyle = "rgba(43,39,34,.3)"; ctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1);
-      ctx.fillStyle = PAL.A; ctx.fillRect(r.x + r.w / 2 - 1, r.y - 1, 2, 4); // 图钉
-      if (!c.open) {
+      ctx.strokeStyle = c.open && c.she ? "rgba(201,106,126,.85)" : "rgba(43,39,34,.3)";
+      ctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1);
+      ctx.fillStyle = PAL.A; ctx.fillRect(r.x + r.w / 2 - 1, r.y - 1, 2, 4);   // 图钉
+      if (!c.open) {                 // 未翻开：纸面横线
         ctx.fillStyle = "#cfc4ae";
-        ctx.fillRect(r.x + 6, r.y + 8, r.w - 12, 2);
-        ctx.fillRect(r.x + 6, r.y + 14, r.w - 12, 2);
-        ctx.fillRect(r.x + 6, r.y + 20, r.w - 20, 2);
-      } else if (c.she) {
-        ctx.fillStyle = PAL.A;
-        ctx.font = "9px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("她 ♥", r.x + r.w / 2, r.y + 24);
-        ctx.font = "6px sans-serif"; ctx.fillStyle = "#8a8072";
-        ctx.fillText("就是这份", r.x + r.w / 2, r.y + 36);
-      } else {
-        ctx.fillStyle = "#4a443c"; ctx.font = "7px sans-serif"; ctx.textAlign = "center";
-        const nm = c.name;
-        ctx.fillText(nm.slice(0, 5), r.x + r.w / 2, r.y + 18);
-        if (nm.length > 5) ctx.fillText(nm.slice(5, 10), r.x + r.w / 2, r.y + 28);
+        ctx.fillRect(r.x + 8, r.y + 13, r.w - 16, 3);
+        ctx.fillRect(r.x + 8, r.y + 22, r.w - 16, 3);
+        ctx.fillRect(r.x + 8, r.y + 31, r.w - 24, 3);
+        ctx.fillStyle = "#b5a98f"; ctx.font = "7px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("点我翻看", r.x + r.w / 2, r.y + 45);
+      } else if (c.she) {            // 她的：发光
+        const pl = .5 + Math.sin(t / 260) * .3;
+        ctx.fillStyle = "rgba(232,160,180," + (.2 + pl * .2) + ")";
+        ctx.fillRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
+        ctx.fillStyle = "#c95a70"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("她 ♥", r.x + r.w / 2, r.y + 28);
+        ctx.fillStyle = "#8a8072"; ctx.font = "8px sans-serif";
+        ctx.fillText("就是这份", r.x + r.w / 2, r.y + 43);
+      } else {                       // 别人的：名字 + 批注
+        ctx.fillStyle = "#3a352e"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
+        const nm = c.nm;
+        ctx.fillText(nm.slice(0, 5), r.x + r.w / 2, r.y + 19);
+        if (nm.length > 5) ctx.fillText(nm.slice(5, 10), r.x + r.w / 2, r.y + 31);
+        ctx.fillStyle = "#6a6258"; ctx.font = "6.5px sans-serif";
+        const q = c.quip || "", qh = Math.ceil(q.length / 2);
+        ctx.fillText(q.slice(0, qh), r.x + r.w / 2, r.y + 42);
+        if (q.length > qh) ctx.fillText(q.slice(qh), r.x + r.w / 2, r.y + 49);
       }
     });
-    if (this.found) { drawSprite(M_STAND, 20, GROUND - CHAR_PH, false); }
+
+    /* 常驻操作大按钮 */
+    if (!this.found && !Dlg.active) {
+      const pl = .6 + Math.sin(t / 240) * .3;
+      ctx.fillStyle = "rgba(250,246,236,.94)"; ctx.fillRect(33, 276, 150, 26);
+      ctx.strokeStyle = "rgba(163,74,46," + pl + ")"; ctx.lineWidth = 1.6;
+      ctx.strokeRect(33.5, 276.5, 149, 25); ctx.lineWidth = 1;
+      ctx.fillStyle = "#2b2722"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("翻开申请书 · 找出她的那一份", 108, 292);
+    }
     ctx.restore();
   },
   pointer(type, x, y) {
@@ -1026,20 +1084,16 @@ SCENES.l1 = {
         c.open = true; sfx.flip();
         if (c.she) {
           this.found = true;
-          saveLevel(2);
-          awardShard("l1");
-          Dlg.show([
-            { who: "旁白", txt: "就是这份。" },
-            { who: "晓燕", txt: "那天面试，我看到一个男生翻申请书翻得很认真。后来才知道，他翻到的正好是我的。" },
-            { who: "旁白", txt: "再后来，QQ 上总是她先发来消息。" },
-            { who: "陈家昊", txt: "所以你看——到底是谁先动的心，到现在也说不清。" }
-          ], () => go("l2"));
+          saveLevel(2); awardShard("l1");
+          const tk = this.token;
+          setTimeout(() => { if (sceneToken === tk) this._victory(); }, 750);
         } else {
           this.wrongCount++; stats.flips++;
-          this.shakeT = 200; buzz(15);
+          this.shakeT = 200; buzz(15); thud();
+          showToast(c.quip || CONFIG.wrongLines[Math.floor(Math.random() * CONFIG.wrongLines.length)]);
           if (this.wrongCount % 5 === 0) hint("偷偷提示：她就在刚才翻过那几张旁边", false);
-          showToast(CONFIG.wrongLines[Math.floor(Math.random() * CONFIG.wrongLines.length)]);
-          setTimeout(() => { c.open = false; }, 900);
+          const cc = c;
+          setTimeout(() => { cc.open = false; }, 1400);
         }
         break;
       }
@@ -1056,12 +1110,11 @@ SCENES.l2 = {
     this.rain = makeRain(60, 2.2);
     this.herX = W - 52;
     this.bubbles = []; this.bubbleT = 0; this.sparkle = 0;
-    setLevel("第 2 关 · 食堂送伞");
+    setLevel("第 2 关 · 雨伞");
     Chip.mood("day");
     Dlg.show([
       { who: "旁白", txt: "相识两个多月，QQ 上越聊越多。" },
-      { who: "陈家昊", txt: "那天约在食堂见面——明明有太阳，她却「恰好」没带伞。" },
-      { who: "旁白", txt: "按住或连续点按屏幕，把伞送到她身边" }
+      { who: "他", txt: "那天在食堂吃完饭，外面忽然下起雨来。她「恰好」没带伞。" }
     ], () => hint("按住或连续点按屏幕，把伞送到她身边", true));
   },
   draw(t) {
@@ -1131,8 +1184,9 @@ SCENES.l2 = {
       awardShard("l2");
       Dlg.show([
         { who: "旁白", txt: "一把伞，两个人，绕着食堂外面走了一大圈才舍得回去。" },
-        { who: "晓燕", txt: "那天我是故意没带伞的。就是想看看，他会不会追出来。" },
-        { who: "陈家昊", txt: "那两个月，没有突然的心动。就是……不知不觉，自然而然。" }
+        { who: "她", txt: "其实伞就在我包里。就是想和你一起，多躲一会儿雨。" },
+        { who: "旁白", txt: "她靠在他身边躲雨。心动来得突然，又理所当然。" },
+        { who: "旁白", txt: "后来他们发现，这个故事，好像总跟雨有关。" }
       ], () => go("walk"));
     }
   },
@@ -1152,12 +1206,12 @@ SCENES.walk = {
   phase: "walk", mt: 0, mx: 54,
   wp: [
     { x: 54, done: false, lines: [
-      { who: "晓燕", txt: "她说：你性格挺好的，跟你待在一起很舒服。" },
-      { who: "陈家昊", txt: "路灯下面，我的心跳漏了半拍。" }
+      { who: "她", txt: "你性格挺好的，跟你待在一起很舒服。" },
+      { who: "他", txt: "路灯下面，心跳漏了半拍。" },
     ]},
     { x: 112, done: false, lines: [
-      { who: "晓燕", txt: "这两个月，QQ 上总是我先找你。" },
-      { who: "晓燕", txt: "今天晚上，换你说点什么吧。" }
+      { who: "她", txt: "这两个月，QQ 上总是我先找你。" },
+      { who: "他", txt: "所以今晚，换我先开口。" }
     ]}
   ],
   fire: [],
@@ -1168,11 +1222,10 @@ SCENES.walk = {
     this.fire = [];
     for (let i = 0; i < 12; i++) this.fire.push({ x: rand(0, W), y: rand(GROUND - 90, GROUND - 12), p: rand(0, 6) });
     Chip.mood("night");
-    setLevel("第 3 关 · 那个夜晚");
+    setLevel("第 3 关 · 确定");
     Dlg.show([
       { who: "旁白", txt: "2016 年 11 月 6 日，晚上。校园里。" },
-      { who: "陈家昊", txt: "那晚我们一起散步，谁也没提回去的事。" },
-      { who: "旁白", txt: "按住或点按屏幕，陪她把这条路走完" }
+      { who: "他", txt: "那晚一起散步，谁也没提回去的事。" }
     ], () => hint("按住或点按屏幕，陪她把这条路走完", true));
   },
   draw(t) {
@@ -1270,8 +1323,8 @@ SCENES.walk = {
         sfx.jingle(); buzz([30, 60, 30]);
         Dlg.show([
           { who: "旁白", txt: "没有烟花，没有表白的套路。" },
-          { who: "陈家昊", txt: "情绪到了。我说：那就——在一起吧。" },
-          { who: "旁白", txt: "她说：好。" },
+          { who: "他", txt: "我们在一起吧。" },
+          { who: "她", txt: "好。" },
           { who: "旁白", txt: "那天聊了什么，后来大部分都忘了。只记得路灯把两个影子拉得很长很长，挨得很近。" },
           { who: "旁白", txt: "2016 年 11 月 6 日。从那个夜晚起，「我」变成了「我们」。" }
         ], () => { saveLevel(4); awardShard("walk"); go("l3"); });
@@ -1294,15 +1347,17 @@ SCENES.l3 = {
     this.token = tok;
     this.speed = 0; this.dist = 0; this.py = 0; this.vy = 0; this.obs = []; this.heartsArr = []; this.spawnT = 1.2;
     this.hp = 3; this.inv = 0; this.done = false; this.navIdx = 0; this.navT = 4;
+    this.nearFlip = false; this.wobble = 0;
     this.rain = makeRain(70, 2.6);
     Chip.mood("ride");
-    setLevel("第 4 关 · 雨夜摩托"); setHearts(3, 3);
+    setLevel("第 4 关 · 雨夜"); setHearts(3, 3);
     $("#dist").classList.remove("hide");
     Dlg.show([
-      { who: "陈家昊", txt: "有一晚要去很远的地方拿东西，雨大得路都看不清。" },
-      { who: "晓燕", txt: "她说：那我陪你。" },
-      { who: "旁白", txt: "那一路到底有多远，他后来一直说不清，只记得导航说了一遍又一遍。" },
-      { who: "旁白", txt: "点按屏幕跳跃，躲开水坑和石头。路上还有爱心，跳起来接住！" }
+      { who: "旁白", txt: "又是下雨天。他们的故事，好像一直被雨推着走。" },
+      { who: "旁白", txt: "在一起之后，有一晚他骑摩托去很远的地方拿东西。雨大得路都看不清。" },
+      { who: "他", txt: "雨这么大，要不改天吧。" },
+      { who: "她", txt: "那我陪你。我来给你看导航。" },
+      { who: "旁白", txt: "那一晚，她坐在后座，举着手机看了一路的导航。" }
     ], () => hint("点按屏幕跳跃 · 接住爱心", false));
   },
   jump() {
@@ -1346,18 +1401,25 @@ SCENES.l3 = {
           this.hp--; this.inv = 1.1; stats.bumps++; sfx.hit(); buzz(60); setHearts(this.hp, 3);
           if (this.hp <= 0) {
             this.hp = 3; setHearts(3, 3);
-            Dlg.show([{ who: "晓燕", txt: CONFIG.hitLines[Math.floor(Math.random() * CONFIG.hitLines.length)] }]);
+            Dlg.show([{ who: "她", txt: CONFIG.hitLines[Math.floor(Math.random() * CONFIG.hitLines.length)] }]);
           }
           break;
         }
       }
     }
-    // 导航语音
+    // 导航语音（她报的）：按路程分段随机
     this.navT -= dt;
-    if (this.navT <= 0 && this.navIdx < CONFIG.navLines.length) {
-      navSay(CONFIG.navLines[this.navIdx++]);
+    if (this.navT <= 0) {
+      const seg = this.dist < this.totalDist * .33 ? "navCity" : this.dist < this.totalDist * .66 ? "navRoad" : "navMud";
+      navSay(CONFIG[seg][Math.floor(Math.random() * CONFIG[seg].length)]);
       this.navT = rand(4, 5.5);
     }
+    // 差点翻车（路程过半触发一次）
+    if (!this.nearFlip && this.dist > this.totalDist * .5) {
+      this.nearFlip = true; this.wobble = 700;
+      buzz(80); navSay("呀——！抓紧了！");
+    }
+    this.wobble = Math.max(0, this.wobble - dt * 1000);
     // 到达
     if (this.dist >= this.totalDist) {
       this.done = true; this.speed = 0;
@@ -1365,30 +1427,36 @@ SCENES.l3 = {
       sfx.jingle(); saveLevel(5);
       awardShard("l3");
       const lines = [
-        { who: "旁白", txt: "到了。雨还在下，两个人都在笑。" },
-        { who: "晓燕", txt: "我记着的不是雨有多大。是他一路骑得很稳，后背很暖。" },
-        { who: "陈家昊", txt: "那晚的路我早忘了。但愿意在那样的大雨里坐在后座的人——我记了一辈子。" }
+        { who: "旁白", txt: "到了家，两个人冻得发抖。她的后背全湿了。" },
+        { who: "他", txt: "东西……没湿吧？" },
+        { who: "她", txt: "抱了一路，怎么会湿。" },
+        { who: "旁白", txt: "那晚的路，他早忘了。但愿意在那样的大雨里坐在后座的人——他永远记得。" }
       ];
-      if (stats.hearts > 0) lines.splice(1, 0, { who: "晓燕", txt: "路上捡了 " + stats.hearts + " 颗爱心？都归你了。" });
+      if (stats.hearts > 0) lines.splice(1, 0, { who: "她", txt: "路上捡了 " + stats.hearts + " 颗爱心？都归你了。" });
       Dlg.show(lines, () => go("l4"));
     }
   },
   draw(t) {
     const rt = GROUND - 86;   // 路面顶
     this.spin = Math.floor(t / 90) % 2;
-    ctx.fillStyle = "#1b2030"; ctx.fillRect(0, 0, W, rt);
-    ctx.fillStyle = "#232a40"; ctx.fillRect(0, rt - 90, W, 90);
-    // 远景楼
-    const wrap = v => ((v % (W + 80)) + (W + 80)) % (W + 80) - 80;
-    ctx.fillStyle = "#1e2436";
-    ctx.fillRect(wrap(0 - this.dist * .4), rt - 130, 40, 130);
-    ctx.fillRect(wrap(90 - this.dist * .4), rt - 110, 30, 110);
-    ctx.fillRect(wrap(170 - this.dist * .4), rt - 140, 46, 140);
+    const segI = this.dist < this.totalDist * .33 ? 0 : this.dist < this.totalDist * .66 ? 1 : 2;
+    ctx.save();
+    if (this.wobble > 0) ctx.translate(Math.sin(t / 18) * 3 * Math.min(1, this.wobble / 300), 0);
+    ctx.fillStyle = ["#1b2030", "#141824", "#101219"][segI]; ctx.fillRect(0, 0, W, rt);
+    ctx.fillStyle = ["#232a40", "#1a1e2c", "#151823"][segI]; ctx.fillRect(0, rt - 90, W, 90);
+    // 远景楼（只在市区段出现）
+    if (segI === 0) {
+      const wrap = v => ((v % (W + 80)) + (W + 80)) % (W + 80) - 80;
+      ctx.fillStyle = "#1e2436";
+      ctx.fillRect(wrap(0 - this.dist * .4), rt - 130, 40, 130);
+      ctx.fillRect(wrap(90 - this.dist * .4), rt - 110, 30, 110);
+      ctx.fillRect(wrap(170 - this.dist * .4), rt - 140, 46, 140);
+    }
     drawStars(t);
     // 路面
-    ctx.fillStyle = "#2e2f36"; ctx.fillRect(0, rt, W, H - rt);
+    ctx.fillStyle = ["#2e2f36", "#26262c", "#453729"][segI]; ctx.fillRect(0, rt, W, H - rt);
     ctx.fillStyle = "#3a3b44"; ctx.fillRect(0, rt, W, 3);
-    ctx.fillStyle = "#d9a441";                                        // 跑道虚线
+    ctx.fillStyle = ["#d9a441", "#8a8f9c", "#6a5a44"][segI];                      // 跑道虚线
     for (let i = 0; i < 8; i++) {
       const dx = ((i * 40) - (this.dist * 1.4) % 40 + 320) % (W + 40) - 20;
       ctx.fillRect(dx, rt + 42, 16, 2);
@@ -1414,6 +1482,7 @@ SCENES.l3 = {
       ctx.fillStyle = "rgba(245,240,230,.12)";
       for (let i = 0; i < 4; i++) ctx.fillRect(((i * 67 + t * .4) % (W + 40)) - 20, 90 + i * 34, 22, 1);
     }
+    ctx.restore();
   },
   pointer(type) { if (type === "down") this.jump(); }
 };
@@ -1424,9 +1493,9 @@ SCENES.l4 = {
   mt: 0, mx: 108, token: 0, ringY: 0,
   lines: [
     "从申请书上的多看了两眼，",
-    "到一把故意的伞，到雨夜里坚持坐在后座的人，",
+    "到一把故意的伞，到雨夜摩托车上抱紧我的你，",
     "十年，好像每一步都很自然，又好像每一步都是注定。",
-    "往后的房子、沙发、午后的阳光，我都想和你一起。",
+    "往后的房子、秋千、午后的阳光，我都想和你一起。",
     "所以——嫁给我，好吗？"
   ],
   shown: 0,
@@ -1439,10 +1508,12 @@ SCENES.l4 = {
     $("#l4bar").classList.add("show");
     $("#l4bar i").style.width = "0";
     Dlg.show([
-      { who: "旁白", txt: "时间快进到拍婚纱照那天。" },
-      { who: "旁白", txt: "她化好妆，穿着婚纱，从门里走出来。" },
-      { who: "陈家昊", txt: "我在心里排练了一百遍的话，就藏在接下来的字里。" },
-      { who: "旁白", txt: "长按屏幕，一字一句读完它。读完之后——把戒指接稳。" }
+      { who: "旁白", txt: "其实，这不是他第一次计划求婚。" },
+      { who: "旁白", txt: "有一次在南昌，她瞥见他衣兜里的戒指盒，悄悄跟闺蜜说：“他可能要求婚了。”" },
+      { who: "旁白", txt: "闺蜜转头就告诉了他。" },
+      { who: "他", txt: "……那就再等等。等到她想不到的那一天。" },
+      { who: "旁白", txt: "后来很久，久到她以为，他不会求婚了。" },
+      { who: "旁白", txt: "2023 年，拍婚纱照那天。她化妆的时候，他在外面，准备着一份她以为不会再有的惊喜。" }
     ], () => hint("长按屏幕，读出求婚词", true));
   },
   update(dt) {
@@ -1456,8 +1527,8 @@ SCENES.l4 = {
         if (should > this.shown) {
           this.shown = should;
           $("#dlg").classList.add("show", "no-next");
-          $("#dlg-who").textContent = "陈家昊";
-          $("#dlg-who").style.color = WHO_COLOR["陈家昊"];
+          $("#dlg-who").textContent = "他";
+          $("#dlg-who").style.color = WHO_COLOR["他"];
           $("#dlg-txt").textContent = this.lines.slice(0, should).join("\n");
           sfx.tap();
         }
@@ -1493,9 +1564,10 @@ SCENES.l4 = {
       saveLevel(6);
       awardShard("l4");
       Dlg.show([
-        { who: "旁白", txt: "她哭了。然后，说了愿意。" },
-        { who: "晓燕", txt: "读到第三句，我就哭了。当年多看我两眼的那个男生，今天要娶我了。" },
-        { who: "旁白", txt: "最后一关，在婚礼现场——等你亲自到场。" }
+        { who: "旁白", txt: "她哭了。在场的人，都红了眼眶。" },
+        { who: "她", txt: "读到第三句，我就哭了。我以为，不会有这一天了。" },
+        { who: "他", txt: "我说过，要等到你完全想不到的那一天。" },
+        { who: "旁白", txt: "最后一关，在婚礼现场——等你亲自到场参与。" }
       ], () => showFinale());
     }, 900);
   },
