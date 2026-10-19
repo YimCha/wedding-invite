@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v9 · BGM 压缩至64k+canplay自动续播+预加载加固 · 2026-10-19 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v10 · BGM 走 jsDelivr CDN + 移除加载重置 · 2026-10-19 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1939,18 +1939,22 @@ $("#music-btn").addEventListener("click", () => {
 });
 
 /* 启动 */
-/* 预加载 BGM：页面打开就开始缓冲，点「开始游戏」时音乐即刻响起，不用等下载 */
+/* 预加载 BGM：页面打开就开始缓冲，点「开始游戏」时音乐即刻响起，不用等下载
+   音频走 jsDelivr CDN（国内访问快得多），加载失败自动回退到本站 */
 if (CONFIG.music) {
   const bgm = $("#bgm");
   bgm.preload = "auto";
-  bgm.src = CONFIG.music;
+  bgm.src = "https://cdn.jsdelivr.net/gh/yimcha/wedding-invite@e2cb283/bgm.m4a";
+  bgm.addEventListener("error", function fb() {
+    bgm.removeEventListener("error", fb);
+    bgm.src = CONFIG.music;
+    bgm.load();
+  });
   bgm.load();
   /* 手机微信等 WebView 会挂起媒体下载：缓冲一够就自动续播，避免"慢半拍" */
   bgm.addEventListener("canplay", () => {
     if (gameStarted && !userMuted && bgm.paused) playBgm();
   });
-  /* 首次触摸时再踢一脚加载（部分 WebView 页面加载期间不下载媒体） */
-  document.addEventListener("pointerdown", () => { bgm.load(); }, { once: true });
 }
 go("title");
 </script>
