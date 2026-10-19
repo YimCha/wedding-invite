@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#141a28">
 <meta name="format-detection" content="telephone=no">
-<title>十年副本 · 陈家昊 & 杨晓燕</title>
+<title>我们的十年 · 陈家昊 & 杨晓燕</title>
 <link rel="preconnect" href="https://fonts.loli.net">
 <link href="https://fonts.loli.net/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -43,6 +43,8 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 #app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--night)}
 #stage{position:relative;touch-action:none}
 #cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:var(--night);box-shadow:0 0 60px rgba(0,0,0,.5);touch-action:none}
+/* 文字层：像素画仍是 216×384 低分辨率，文字单独画在这层按设备像素比渲染的叠加画布上，保证清晰 */
+#cvTxt{position:absolute;left:0;top:0;display:block;pointer-events:none}
 #ui{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 #ui>*{pointer-events:none}
 #ui button{pointer-events:auto}
@@ -58,7 +60,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 #skip:active{background:var(--ink);color:var(--paper)}
 
 /* 操作提示 */
-#hint{position:absolute;left:50%;bottom:34%;transform:translateX(-50%);background:rgba(20,26,40,.78);color:#f5f0e6;font-size:13px;letter-spacing:.2em;padding:9px 18px;border:1px solid rgba(245,240,230,.35);white-space:nowrap;opacity:0;transition:opacity .5s}
+#hint{position:absolute;left:50%;top:calc(122px + env(safe-area-inset-top));transform:translateX(-50%);background:rgba(20,26,40,.78);color:#f5f0e6;font-size:13px;letter-spacing:.2em;padding:9px 18px;border:1px solid rgba(245,240,230,.35);white-space:nowrap;opacity:0;transition:opacity .5s}
 #hint.show{opacity:1}
 
 /* 导航语音气泡 */
@@ -75,8 +77,8 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 #dlg.no-next #dlg-next{display:none}
 @keyframes bob{50%{transform:translateY(3px)}}
 
-/* 进度条（L4 长按读信） */
-#l4bar{position:absolute;left:50%;transform:translateX(-50%);bottom:118px;width:70%;height:10px;background:rgba(245,240,230,.35);border:1px solid rgba(245,240,230,.7);display:none}
+/* 进度条（L4 长按读信）：放屏幕上方，避免被底部不断变高的求婚词对话框盖住 */
+#l4bar{position:absolute;left:50%;transform:translateX(-50%);top:calc(104px + env(safe-area-inset-top));width:70%;height:10px;background:rgba(245,240,230,.35);border:1px solid rgba(245,240,230,.7);display:none}
 #l4bar.show{display:block}
 #l4bar i{display:block;height:100%;width:0;background:var(--rust)}
 
@@ -92,7 +94,21 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 .t-links{margin-top:22px;display:flex;gap:18px}
 .t-link{background:none;border:none;color:rgba(245,240,230,.75);font-size:12px;letter-spacing:.2em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
 .t-tip{margin-top:26px;font-size:11px;letter-spacing:.25em;opacity:.55}
+/* 首层次级入口：跳过游戏 */
+.t-skip{margin-top:20px;background:none;border:none;color:rgba(245,240,230,.6);font-size:12px;letter-spacing:.14em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
 .hide{display:none !important}
+
+/* 游戏中途选关面板 */
+#lvsel{cursor:pointer}
+#lvsel:active{background:var(--ink);color:var(--paper)}
+#ui #lvsel-panel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,26,40,.55);pointer-events:auto;z-index:60}
+#lvsel-panel.hide{display:none !important}
+.lvp-box{background:rgba(245,240,230,.97);border:2px solid var(--ink);box-shadow:4px 4px 0 rgba(0,0,0,.45);padding:18px 16px 12px;text-align:center;max-width:82%}
+.lvp-title{font-size:11px;letter-spacing:.3em;text-indent:.3em;color:var(--muted);margin-bottom:14px}
+.lvp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lv-btn{background:transparent;border:1px solid var(--ink);color:var(--ink);font-size:11px;letter-spacing:.12em;padding:9px 4px;cursor:pointer;white-space:nowrap}
+.lv-btn:active{background:var(--ink);color:var(--paper)}
+.lvp-close{margin-top:12px;background:none;border:none;color:var(--muted);font-size:11px;letter-spacing:.22em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
 
 /* 通关碎片 + 战绩 */
 .fin-shards{margin-top:26px;display:flex;gap:14px}
@@ -115,7 +131,6 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 #envelope-sec.opened .seal{opacity:0;transition:.3s}
 @keyframes sealpulse{50%{transform:translate(-50%,-50%) scale(1.09)}}
 .env-to{position:absolute;left:0;right:0;bottom:20px;text-align:center;font-size:16px;letter-spacing:.08em;color:#5a4a34;z-index:1}
-.env-to input{border:none;border-bottom:1px dashed rgba(43,39,34,.5);background:transparent;text-align:center;font:inherit;color:#8a3020;width:126px;outline:none;padding:2px 2px}
 .env-deco{position:absolute;top:18px;left:18px;font-size:11px;letter-spacing:.3em;color:rgba(43,39,34,.4);z-index:1;writing-mode:vertical-rl}
 .env-tip{margin-top:40px;font-size:12px;letter-spacing:.25em;color:var(--muted);text-align:center;line-height:2}
 
@@ -131,8 +146,16 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 .stamps::-webkit-scrollbar{display:none}
 .stamp{flex:0 0 auto;width:112px;background:#fdfaf2;border:1px solid var(--hair);outline:2px dashed rgba(43,39,34,.32);outline-offset:-7px;padding:14px 8px 12px;text-align:center}
 .stamp .ico{font-size:30px;line-height:1}
-.stamp .yr{font-family:var(--serif-en);font-size:10px;letter-spacing:.18em;color:var(--rust);margin-top:9px}
 .stamp .cap{margin-top:5px;font-size:11px;line-height:1.7;color:#6a6156}
+/* 未收集 / 已收集 / 待集齐 */
+.stamp{transition:opacity .3s}
+.stamp:not(.got):not(.pending){opacity:.4}
+.stamp:not(.got):not(.pending) .ico{filter:grayscale(1);opacity:.7}
+.stamp.got{border-color:var(--rust);box-shadow:0 3px 12px rgba(163,74,46,.16)}
+.stamp.pending{opacity:.62;outline-color:rgba(163,74,46,.45)}
+.stamp.pending .ico{filter:grayscale(.35)}
+.stamp .need{display:block;margin-top:5px;font-size:10px;letter-spacing:.14em;color:var(--rust)}
+.stamp-note{max-width:340px;font-size:12px;line-height:1.9;color:var(--muted);letter-spacing:.06em}
 
 /* 新人彩蛋 */
 #egg-sec{text-align:center;padding:48px 28px 8px}
@@ -146,7 +169,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 .sec-head .en{font-family:var(--serif-en);font-style:italic;font-size:13px;letter-spacing:.3em;color:var(--rust);white-space:nowrap}
 .sec-head .zh{font-size:15px;letter-spacing:.4em;text-indent:.4em;font-weight:400;white-space:nowrap}
 .i-hero{position:relative;min-height:72vh;display:flex;align-items:flex-end;overflow:hidden}
-.i-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--paper2)}
+.i-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 8%;background:var(--paper2)}
 .i-hero-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(28,22,16,.25),rgba(28,22,16,.05) 38%,rgba(28,22,16,.6))}
 .i-hero-c{position:relative;z-index:1;width:100%;text-align:center;color:#f6f1e6;padding:0 24px 56px}
 .i-eyebrow{font-family:var(--serif-en);letter-spacing:.5em;text-indent:.5em;font-size:11px;opacity:.85}
@@ -162,35 +185,34 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 .letter{max-width:520px;margin:0 auto;text-align:center;font-size:15px;line-height:2.3}
 .letter p+p{margin-top:1em}
 .letter .sign{margin-top:28px;letter-spacing:.25em;color:var(--rust)}
+/* 信尾「我们，要结婚了」特殊排版 */
+.wed-line{margin-top:34px;padding-top:28px;border-top:1px solid var(--hair-soft);text-align:center}
+.wed-date{font-size:12.5px;letter-spacing:.42em;text-indent:.42em;color:var(--muted)}
+.wed-main{margin-top:14px;font-size:clamp(25px,6.6vw,32px);font-weight:500;letter-spacing:.2em;text-indent:.2em;line-height:1.5;color:var(--ink)}
+.wed-heart{margin:16px auto 0;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--rust);font-size:11px;line-height:1}
+.wed-heart::before,.wed-heart::after{content:"";width:52px;height:1px;background:var(--hair-soft)}
 .i-info{max-width:460px;margin:0 auto;text-align:center;border:1px solid var(--hair);padding:44px 26px;position:relative}
 .i-info::after{content:"";position:absolute;inset:6px;border:1px solid var(--hair-soft);pointer-events:none}
 .i-den{font-family:var(--serif-en);font-size:36px;font-weight:500;letter-spacing:.08em}
 .i-dzh{margin-top:8px;font-size:13px;letter-spacing:.2em;color:var(--muted)}
-.i-venue{margin-top:30px;font-size:20px;font-weight:500;letter-spacing:.14em}
-.i-addr{margin-top:6px;font-size:13px;color:var(--muted)}
+.i-sep{width:56px;height:1px;background:var(--hair);margin:26px auto 0}
+.i-venue{margin-top:22px;font-size:20px;font-weight:500;letter-spacing:.14em}
+.i-hall{margin-top:9px;font-size:12.5px;letter-spacing:.24em;text-indent:.24em;color:var(--rust)}
+.i-addr{margin-top:12px;font-size:13px;color:var(--muted)}
 .btns{margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
 .btn{display:inline-block;padding:12px 28px;border:1px solid var(--ink);color:var(--ink);font-size:12px;letter-spacing:.32em;text-indent:.32em;text-decoration:none;background:transparent;transition:.3s;cursor:pointer}
 .btn:active{background:var(--ink);color:var(--paper)}
 .btn.solid{background:var(--ink);color:var(--paper)}
 .btn.solid:active{background:var(--rust);border-color:var(--rust)}
-.rsvp-box{max-width:460px;margin:0 auto;text-align:center}
-.rsvp-tip{font-size:13.5px;color:var(--muted);margin-bottom:26px}
 .field{display:flex;border:1px solid var(--hair)}
 .field input{flex:1;background:transparent;border:none;outline:none;padding:14px 16px;font:inherit;font-size:15px;color:var(--ink)}
 .field input::placeholder{color:#b3a996}
-.toggle{display:flex;border:1px solid var(--hair);margin-top:12px}
-.toggle button{flex:1;padding:13px 0;background:transparent;border:none;font:inherit;font-size:14px;letter-spacing:.3em;text-indent:.3em;color:var(--muted);cursor:pointer}
-.toggle button.sel{background:var(--ink);color:var(--paper)}
-.stepper{display:flex;align-items:center;justify-content:center;border:1px solid var(--hair);margin-top:12px}
-.stepper button{width:56px;padding:12px 0;background:transparent;border:none;font-size:18px;color:var(--ink);cursor:pointer}
-.stepper .num{width:56px;text-align:center;font-size:18px;font-family:var(--serif-en)}
-.stepper .unit{font-size:12px;color:var(--muted);margin-right:-30px;margin-left:32px}
-.rsvp-box .btn.solid{margin-top:22px;width:100%}
 .i-foot{text-align:center;padding:80px 28px 96px}
 .i-foot .mono{font-family:var(--serif-en);font-style:italic;font-size:32px;color:var(--rust)}
 .i-foot .quote{margin-top:18px;font-size:14px;letter-spacing:.3em;text-indent:.3em}
-.i-foot .replay{margin-top:22px;background:none;border:none;color:var(--muted);font-size:11px;letter-spacing:.25em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-#toast{position:fixed;left:50%;bottom:10%;transform:translateX(-50%) translateY(10px);background:var(--ink);color:var(--paper);font-size:13px;letter-spacing:.15em;padding:11px 22px;opacity:0;pointer-events:none;transition:.4s;z-index:99;white-space:nowrap}
+.i-foot .replay{margin-top:0;background:none;border:none;color:var(--muted);font-size:11px;letter-spacing:.25em;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.i-foot-links{margin-top:22px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+#toast{position:fixed;left:50%;top:calc(168px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-10px);background:var(--ink);color:var(--paper);font-size:13px;letter-spacing:.15em;padding:11px 22px;opacity:0;pointer-events:none;transition:.4s;z-index:99;white-space:nowrap}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 #music-btn{position:fixed;top:calc(58px + env(safe-area-inset-top));right:14px;z-index:80;width:40px;height:40px;border-radius:50%;border:1px solid var(--hair);background:rgba(245,240,230,.85);display:none;align-items:center;justify-content:center;cursor:pointer}
 #music-btn.show{display:flex}
@@ -206,27 +228,40 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 <div id="app">
   <div id="stage">
   <canvas id="cv" width="216" height="384"></canvas>
+  <canvas id="cvTxt"></canvas>
 
   <div id="ui">
-    <div id="hud"><span class="chip" id="lv-chip">十年副本</span><span class="chip hide" id="dist"></span><span id="hearts"></span><span class="chip hide" id="shard-chip"></span></div>
+    <div id="hud"><span class="chip" id="lv-chip">我们的十年</span><span class="chip hide" id="dist"></span><span id="hearts"></span><span class="chip hide" id="shard-chip"></span><button class="chip hide" id="lvsel" title="随时切换关卡">☰ 选关</button></div>
     <button id="skip">跳过游戏 »</button>
     <div id="nav-bubble"></div>
     <div id="hint"></div>
     <div id="l4bar"><i></i></div>
     <div id="dlg"><div id="dlg-who"></div><div id="dlg-txt"></div><div id="dlg-next">▼</div></div>
 
+    <!-- 游戏中途选关面板 -->
+    <div id="lvsel-panel" class="hide">
+      <div class="lvp-box">
+        <div class="lvp-title">随时可以去任何一段</div>
+        <div class="lvp-grid">
+          <button class="lv-btn" data-lv="1">1 招新</button>
+          <button class="lv-btn" data-lv="2">2 雨伞</button>
+          <button class="lv-btn" data-lv="3">3 确定</button>
+          <button class="lv-btn" data-lv="4">4 雨夜</button>
+          <button class="lv-btn" data-lv="5">5 求婚</button>
+        </div>
+        <button class="lvp-close" id="lvsel-close">✕ 继续当前</button>
+      </div>
+    </div>
+
     <!-- 标题画面 -->
     <div id="title" class="screen">
       <div class="t-eyebrow">A WEDDING QUEST</div>
-      <div class="t-main">十年副本</div>
+      <div class="t-main">我们的十年</div>
       <div class="t-sub">一场需要通关才能拆开的婚礼邀请函</div>
       <div class="t-names" id="t-names">CHEN &amp; YANG</div>
       <button class="t-btn" id="btn-start">开 始 游 戏</button>
-      <div class="t-links hide" id="t-links">
-        <button class="t-link" id="btn-continue">继续上次的进度</button>
-        <button class="t-link" id="btn-restart">从头再来</button>
-      </div>
-      <div class="t-tip">约 4 分钟 · 共 5 个小关卡 · 长辈可以直接跳过</div>
+      <button class="t-skip" id="btn-skip-title">跳过游戏，直接看邀请函 »</button>
+      <div class="t-tip">约 4 分钟 · 共 5 个小关卡</div>
     </div>
 
     <!-- 通关画面 -->
@@ -252,9 +287,9 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
       <div class="env-deco">见字如面</div>
       <div class="env-flap"></div>
       <button class="seal" id="seal">囍</button>
-      <div class="env-to">致 <input id="guest-name" maxlength="14" placeholder="亲爱的你" autocomplete="off"> ：收</div>
+      <div class="env-to">致 亲爱的你 ：收</div>
     </div>
-    <div class="env-tip">可以先写下你的称呼，这封信就会变成写给你的<br>然后点一点火漆印，拆开它</div>
+    <div class="env-tip">点一点火漆印，拆开这封信</div>
   </section>
 
   <!-- 信纸主体 -->
@@ -262,11 +297,17 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
   <section>
     <div class="orn">&amp;</div>
     <div class="letter">
-      <p class="salute">亲爱的 <span id="letter-name">你</span>：</p>
+      <p class="salute">亲爱的你：</p>
       <p>2016 年秋天，我们在一叠辩论队申请书里认识了彼此——他多看了两眼她的名字，而面试那天，她其实也注意到了他。</p>
       <p>后来的十年里，有一把故意没带的伞，有一个路灯下谁也不提回家的夜晚，有一场很大的雨，和摩托车的后座。</p>
-      <p>这些故事，有些你在场，有些你听过我们提起。现在，最后一段故事，想请你亲眼来见证。</p>
-      <p class="sign"><span id="letter-date"></span>，我们要结婚了。<br>这封信，想当面交给你——请你来。</p>
+      <p>再往后，是很长很长的普通日子，一天天过去——直到拍婚纱照的那个下午，他补上了那句等了很久的话。</p>
+      <p>这些故事，有些你在场，有些你只听我们提起过。</p>
+      <div class="wed-line">
+        <div class="wed-date"><span id="letter-date"></span></div>
+        <div class="wed-main">我们，要结婚了</div>
+        <div class="wed-heart">❤</div>
+      </div>
+      <p class="sign">这故事，还有后续。<br>想请你，亲眼见证。</p>
       <p class="sign-names">—— 陈家昊 &amp; 杨晓燕</p>
     </div>
   </section>
@@ -285,12 +326,14 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
   <section>
     <div class="sec-head"><span class="en">Ten Years</span><span class="zh">十年邮票</span></div>
     <div class="stamps">
-      <div class="stamp"><div class="ico">📄</div><div class="yr">2016 · 秋</div><div class="cap">多看了两眼的<br>申请书</div></div>
-      <div class="stamp"><div class="ico">☂️</div><div class="yr">2016 · 秋</div><div class="cap">故意没带的<br>那把伞</div></div>
-      <div class="stamp"><div class="ico">🌙</div><div class="yr">2016.11.6</div><div class="cap">路灯下的<br>两个影子</div></div>
-      <div class="stamp"><div class="ico">🏍️</div><div class="yr">一个雨夜</div><div class="cap">大雨里的<br>后座</div></div>
-      <div class="stamp"><div class="ico">💍</div><div class="yr">2023</div><div class="cap">她说<br>愿意</div></div>
+      <div class="stamp" data-shard="l1"><div class="ico">📄</div><div class="cap">多看了两眼的<br>申请书</div></div>
+      <div class="stamp" data-shard="l2"><div class="ico">☂️</div><div class="cap">故意没带的<br>那把伞</div></div>
+      <div class="stamp" data-shard="walk"><div class="ico">🌙</div><div class="cap">路灯下的<br>两个影子</div></div>
+      <div class="stamp" data-shard="l3"><div class="ico">🏍️</div><div class="cap">大雨里的<br>后座</div></div>
+      <div class="stamp" data-shard="l4"><div class="ico">💍</div><div class="cap">她说<br>愿意</div></div>
+      <div class="stamp pending" id="stamp-wed"><div class="ico">💒</div><div class="cap">我们结婚了<br><span class="need">婚礼现场见</span></div></div>
     </div>
+    <div class="stamp-note">邮票会在游戏里一枚枚点亮；最后一枚「我们结婚了」，只等你亲自到场的那一天。</div>
   </section>
 
   <section>
@@ -298,36 +341,19 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
     <div class="i-info">
       <div class="i-den" id="i-den"></div>
       <div class="i-dzh" id="i-dzh"></div>
+      <div class="i-sep"></div>
       <div class="i-venue" id="i-venue"></div>
+      <div class="i-hall" id="i-hall"></div>
       <div class="i-addr" id="i-addr"></div>
       <div class="btns">
         <a class="btn" id="i-nav" target="_blank" rel="noopener">一键导航</a>
-        <a class="btn" id="i-ics" href="#">添加到日历</a>
+        <button class="btn" id="i-copy">复制时间地点</button>
       </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-head"><span class="en">R.S.V.P</span><span class="zh">敬候回音</span></div>
-    <div class="rsvp-box">
-      <p class="rsvp-tip">请告诉我们您是否出席，我们会一直等您的答复<br><span style="font-size:12px">（填上称呼，信纸抬头就会变成你的名字）</span></p>
-      <div class="field"><input id="rsvp-name" maxlength="20" placeholder="您的称呼（如：张叔叔一家）"></div>
-      <div class="toggle">
-        <button id="att-yes" class="sel">如约出席</button>
-        <button id="att-no">遗憾缺席</button>
-      </div>
-      <div class="stepper">
-        <button id="cnt-minus">–</button>
-        <div class="num" id="cnt-num">2</div>
-        <span class="unit">位</span>
-        <button id="cnt-plus">＋</button>
-      </div>
-      <button class="btn solid" id="rsvp-copy">生成回执并复制</button>
     </div>
   </section>
 
   <section id="egg-sec">
-    <button class="egg-hint" id="egg-hint">如果拆开这封信的，是我们俩自己 →</button>
+    <button class="egg-hint" id="egg-hint">如果拆开这封信的，是新郎新娘 →</button>
     <div id="egg-lock" class="hide">
       <div class="field"><input id="egg-ans" maxlength="10" inputmode="numeric" placeholder="我们在一起的日子（月日，如 1224）"></div>
       <button class="btn" id="egg-unlock">打开</button>
@@ -343,7 +369,10 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
   <footer class="i-foot">
     <div class="mono">&amp;</div>
     <div class="quote">期待与您，共赴这一场欢喜。</div>
-    <button class="replay" id="btn-replay2">← 重新玩一遍游戏</button>
+    <div class="i-foot-links">
+      <button class="replay" id="btn-replay2">← 重新玩一遍游戏</button>
+      <button class="replay" id="btn-levels">← 回到关卡选择</button>
+    </div>
   </footer>
   </div>
 </div>
@@ -357,25 +386,22 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
    ★ 改这里就够了 ★
    - 新娘名字、婚期、酒店：直接改下面几行
    - 求婚词、搞笑台词、导航语音：都在下面的文案区
-   - 照片：结局邀请函里的 src 目前是 AI 占位图，有真实照片后
-     换成图片路径（如 "photos/1.jpg"，与本文件同目录）
+   - 照片：结局邀请函的主视觉用 photos/wedding.jpg（真实结婚照）
    - 音乐：mp3 放本文件同目录，music 填文件名（建议《爱就一个字》）
 ============================================================ */
-const img = (prompt, size) =>
-  "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=" + encodeURIComponent(prompt) + "&image_size=" + (size || "portrait_4_3");
-
 const CONFIG = {
   groom: "陈家昊",
   bride: "杨晓燕",
-  date: "2026-11-03 12:00",        // TODO: 12:00 是占位，确认午宴/晚宴时间后改（晚宴一般 17:58/18:08）
-  venue: "酒店名称待定",            // TODO
-  address: "详细地址待定",          // TODO
+  date: "2026-11-03 18:18",        // 晚宴 18:18 开席
+  venue: "上饶鑫邦大酒店",
+  hall: "鑫邦厅",                  // 宴会厅（留空则不显示这一行）
+  address: "江西省上饶市信州区凤凰中大道999号",
   city: "上饶",
-  mapKeyword: "",                  // 导航搜索关键词，留空则用 venue
+  mapKeyword: "上饶鑫邦大酒店",      // 用完整酒店名导航，避免搜到婺源同名酒店
   music: "bgm.m4a",                 // 全程背景音乐：《遇见》钢琴纯音乐版（与本文件同目录；留空则回退到内置八音盒引擎）
 
-  /* --- 结局邀请函照片（AI 占位，可换真实照片路径） --- */
-  heroImg: img("Editorial wedding film photography, young asian couple back view walking hand in hand on open road at golden dusk, soft warm backlight, 35mm film grain, muted earthy tones, minimalist timeless romantic mood, no text"),
+  /* --- 结局邀请函主视觉照片（真实结婚照，已裁掉摄影工作室水印） --- */
+  heroImg: "photos/wedding.jpg",
 
   /* --- 错误申请书：名字 + 申请书上的小批注（L1 翻卡，批注让每份都有故事） --- */
   wrongNames: [
@@ -440,8 +466,8 @@ function showToast(t) {
 /* 安全存储：微信文件预览等受限环境下 localStorage 会抛错，降级为内存，保证页面不死 */
 const store = {
   _m: {},
-  get(k) { try { return store.get(k); } catch (e) { return k in this._m ? this._m[k] : null; } },
-  set(k, v) { try { store.set(k, v); } catch (e) { this._m[k] = v; } }
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return k in this._m ? this._m[k] : null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { this._m[k] = v; } }
 };
 
 /* ================= 音效（八音盒/木琴音色 + 合成混响，柔和不刺耳） ================= */
@@ -624,7 +650,28 @@ document.addEventListener("visibilitychange", () => {
 /* ================= 画布（高度自适应长屏手机） ================= */
 const W = 216;
 const cv = $("#cv"), ctx = cv.getContext("2d");
-let H = 384, GROUND = 316, viewScale = 1;
+const cvt = $("#cvTxt"), tctx = cvt.getContext("2d");
+let H = 384, GROUND = 316, viewScale = 1, textScale = 1;
+/* 文字绘制：画布文字统一走这里，收集起来每帧画到高分辨率文字层（替代 ctx.fillText） */
+let txq = [];
+function drawText(txt, x, y) {
+  let m;
+  try { m = ctx.getTransform(); } catch (e) { m = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }; }
+  txq.push({ txt, x, y, font: ctx.font, fill: ctx.fillStyle, align: ctx.textAlign, m });
+}
+function flushText() {
+  const K = textScale;
+  tctx.setTransform(1, 0, 0, 1, 0, 0);
+  tctx.clearRect(0, 0, cvt.width, cvt.height);
+  for (const q of txq) {
+    const m = q.m;
+    tctx.setTransform(K * m.a, K * m.b, K * m.c, K * m.d, K * m.e, K * m.f);
+    tctx.font = q.font; tctx.fillStyle = q.fill; tctx.textAlign = q.align;
+    tctx.fillText(q.txt, q.x, q.y);
+  }
+  tctx.setTransform(1, 0, 0, 1, 0, 0);
+  txq.length = 0;
+}
 function fit() {
   const s = Math.min(window.innerWidth / W, window.innerHeight / 384);
   viewScale = s;
@@ -636,6 +683,11 @@ function fit() {
   }
   cv.style.width = W * s + "px";
   cv.style.height = H * s + "px";
+  textScale = s * Math.min(window.devicePixelRatio || 1, 3);
+  cvt.width = Math.max(1, Math.round(W * textScale));
+  cvt.height = Math.max(1, Math.round(H * textScale));
+  cvt.style.width = cv.style.width;
+  cvt.style.height = cv.style.height;
 }
 window.addEventListener("resize", fit);
 window.addEventListener("orientationchange", fit);
@@ -919,6 +971,12 @@ function go(name, arg) {
   $("#l4bar").classList.remove("show");
   $("#dist").classList.add("hide");
   setHearts(0, 0);
+  hintOff();
+  /* 选关入口、浮动「跳过游戏」、左上角 HUD（关名 + 碎片）只在游戏进行中显示 */
+  const onBoard = !(name === "title" || name === "finale");
+  $("#lvsel").classList.toggle("hide", !onBoard);
+  $("#skip").classList.toggle("hide", !onBoard);
+  $("#hud").classList.toggle("hide", !onBoard);
   if (scene.enter) scene.enter(arg, sceneToken);
 }
 
@@ -928,8 +986,8 @@ function makeRain(n, speed) {
   for (let i = 0; i < n; i++) arr.push({ x: rand(0, W), y: rand(0, H), v: rand(.8, 1.3) * speed });
   return arr;
 }
-function drawRain(arr) {
-  ctx.strokeStyle = "rgba(190,205,230,.5)";
+function drawRain(arr, day) {
+  ctx.strokeStyle = day ? "rgba(88,108,138,.6)" : "rgba(190,205,230,.5)";
   ctx.lineWidth = 1;
   arr.forEach(d => {
     ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 1, d.y + 4); ctx.stroke();
@@ -952,12 +1010,10 @@ const SCENES = {};
 /* ---- 标题 ---- */
 SCENES.title = {
   enter() {
-    setLevel("十年副本");
+    setLevel("我们的十年");
     Chip.mood("title");
     $("#title").classList.remove("hide");
     updateShardHud();
-    const has = +store.get("wg_level") || 0;
-    if (has > 1) { $("#t-links").classList.remove("hide"); $("#btn-continue").textContent = "继续 · 第 " + Math.min(5, has) + " 关"; }
   }
 };
 function drawTitleBG(t) {
@@ -1000,7 +1056,7 @@ SCENES.l1 = {
       { who: "他", txt: "说不上哪里不一样。就是……多看了两眼。" }
     ], () => {
       if (sceneToken !== tok) return;
-      hint("在申请书里找出「她」的那一份", true);
+      hint("在申请书里找出她写的那一份", true);
     });
   },
   cardRect(i) {
@@ -1044,24 +1100,24 @@ SCENES.l1 = {
         ctx.fillRect(r.x + 8, r.y + 22, r.w - 16, 3);
         ctx.fillRect(r.x + 8, r.y + 31, r.w - 24, 3);
         ctx.fillStyle = "#b5a98f"; ctx.font = "7px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("点我翻看", r.x + r.w / 2, r.y + 45);
+        drawText("点我翻看", r.x + r.w / 2, r.y + 45);
       } else if (c.she) {            // 她的：发光
         const pl = .5 + Math.sin(t / 260) * .3;
         ctx.fillStyle = "rgba(232,160,180," + (.2 + pl * .2) + ")";
         ctx.fillRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
         ctx.fillStyle = "#c95a70"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("她 ♥", r.x + r.w / 2, r.y + 28);
+        drawText("她 ♥", r.x + r.w / 2, r.y + 28);
         ctx.fillStyle = "#8a8072"; ctx.font = "8px sans-serif";
-        ctx.fillText("就是这份", r.x + r.w / 2, r.y + 43);
+        drawText("就是这份", r.x + r.w / 2, r.y + 43);
       } else {                       // 别人的：名字 + 批注
         ctx.fillStyle = "#3a352e"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
         const nm = c.nm;
-        ctx.fillText(nm.slice(0, 5), r.x + r.w / 2, r.y + 19);
-        if (nm.length > 5) ctx.fillText(nm.slice(5, 10), r.x + r.w / 2, r.y + 31);
+        drawText(nm.slice(0, 5), r.x + r.w / 2, r.y + 19);
+        if (nm.length > 5) drawText(nm.slice(5, 10), r.x + r.w / 2, r.y + 31);
         ctx.fillStyle = "#6a6258"; ctx.font = "6.5px sans-serif";
         const q = c.quip || "", qh = Math.ceil(q.length / 2);
-        ctx.fillText(q.slice(0, qh), r.x + r.w / 2, r.y + 42);
-        if (q.length > qh) ctx.fillText(q.slice(qh), r.x + r.w / 2, r.y + 49);
+        drawText(q.slice(0, qh), r.x + r.w / 2, r.y + 42);
+        if (q.length > qh) drawText(q.slice(qh), r.x + r.w / 2, r.y + 49);
       }
     });
 
@@ -1072,7 +1128,7 @@ SCENES.l1 = {
       ctx.strokeStyle = "rgba(163,74,46," + pl + ")"; ctx.lineWidth = 1.6;
       ctx.strokeRect(33.5, 276.5, 149, 25); ctx.lineWidth = 1;
       ctx.fillStyle = "#2b2722"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("翻开申请书 · 找出她的那一份", 108, 292);
+      drawText("翻开申请书 · 找出她写的那一份", 108, 292);
     }
     ctx.restore();
   },
@@ -1119,20 +1175,20 @@ SCENES.l2 = {
   },
   draw(t) {
     const rt = GROUND;   // 路面基准
-    ctx.fillStyle = "#3a4152"; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#2c3345";
+    ctx.fillStyle = "#b8c5d3"; ctx.fillRect(0, 0, W, H);                       // 阴天白昼的天色
+    ctx.fillStyle = "#93a0b0";
     ctx.fillRect(0, rt - 166, 70, 130); ctx.fillRect(80, rt - 146, 60, 110);   // 远处楼
-    ctx.fillStyle = "#232838"; ctx.fillRect(0, rt - 76, W, 76);
-    ctx.fillStyle = "#d9a441";                                                 // 亮灯的窗
+    ctx.fillStyle = "#a4b0bf"; ctx.fillRect(0, rt - 76, W, 76);
+    ctx.fillStyle = "#cfd9e3";                                                 // 白天的窗（玻璃反光，不亮灯）
     ctx.fillRect(14, rt - 146, 8, 10); ctx.fillRect(34, rt - 126, 8, 10); ctx.fillRect(96, rt - 126, 8, 10);
-    ctx.fillStyle = "#5a4436"; ctx.fillRect(0, rt, W, H - rt);                 // 路
-    ctx.fillStyle = "#4a382c"; ctx.fillRect(0, rt, W, 3);
+    ctx.fillStyle = "#6f7481"; ctx.fillRect(0, rt, W, H - rt);                 // 湿漉漉的路
+    ctx.fillStyle = "#5c6270"; ctx.fillRect(0, rt, W, 3);
     // 食堂（右侧）
-    ctx.fillStyle = "#2b3040"; ctx.fillRect(W - 78, rt - 136, 78, 136);
-    ctx.fillStyle = "#3a3040"; ctx.fillRect(W - 86, rt - 148, 86, 14);         // 雨棚
-    ctx.fillStyle = PAL.G; ctx.fillRect(W - 60, rt - 106, 12, 14); ctx.fillRect(W - 36, rt - 106, 12, 14);
-    ctx.fillStyle = "#1d2230"; ctx.fillRect(W - 52, rt - 66, 26, 66);          // 门
-    drawRain(this.rain);
+    ctx.fillStyle = "#8d94a3"; ctx.fillRect(W - 78, rt - 136, 78, 136);
+    ctx.fillStyle = "#a86a5c"; ctx.fillRect(W - 86, rt - 148, 86, 14);         // 雨棚（暖色，白天也显眼）
+    ctx.fillStyle = "#e6eef5"; ctx.fillRect(W - 60, rt - 106, 12, 14); ctx.fillRect(W - 36, rt - 106, 12, 14);
+    ctx.fillStyle = "#5a6070"; ctx.fillRect(W - 52, rt - 66, 26, 66);          // 门
+    drawRain(this.rain, true);
     // 她（在屋檐下，没伞）
     drawSprite(H_STAND, this.herX, rt - CHAR_PH, false);
     // 他（撑伞走向右）
@@ -1150,14 +1206,14 @@ SCENES.l2 = {
     // 到达时的小星光
     if (this.sparkle > 0) {
       this.sparkle -= 16;
-      ctx.fillStyle = "#f5e3a8";
+      ctx.fillStyle = "#e0a63c";
       for (let i = 0; i < 6; i++) {
         const a = i / 6 * 6.28 + t / 300;
         ctx.fillRect(this.px + 20 + Math.cos(a) * 16, rt - 24 + Math.sin(a) * 12, 2, 2);
       }
     }
     // 水花
-    ctx.fillStyle = "rgba(190,205,230,.35)";
+    ctx.fillStyle = "rgba(70,82,100,.4)";
     for (let i = 0; i < 8; i++) {
       const sx = (i * 31 + t / 12) % W, sy = rt + (i % 3) * 8;
       ctx.fillRect(sx, sy, 2, 1);
@@ -1292,7 +1348,7 @@ SCENES.walk = {
       drawPixelHeart(108 - a, ty - 4, 2, "#c95a70");
       drawPixelHeart(108 + a, ty - 4, 2, "#c95a70");
       ctx.font = "8px sans-serif"; ctx.fillStyle = "#f5f0e6"; ctx.textAlign = "center";
-      ctx.fillText("两颗心靠近时，点一下屏幕", 108, ty + 20);
+      drawText("两颗心靠近时，点一下屏幕", 108, ty + 20);
     }
   },
   update(dt) {
@@ -1342,7 +1398,7 @@ SCENES.walk = {
 /* ---- L4 雨夜摩托 ---- */
 SCENES.l3 = {
   speed: 0, dist: 0, py: 0, vy: 0, obs: [], heartsArr: [], spawnT: 0, hp: 3, inv: 0, done: false,
-  rain: null, spin: 0, navIdx: 0, navT: 4, token: 0, totalDist: 2400,
+  rain: null, spin: 0, navIdx: 0, navT: 4, token: 0, totalDist: 1500,
   enter(tok) {
     this.token = tok;
     this.speed = 0; this.dist = 0; this.py = 0; this.vy = 0; this.obs = []; this.heartsArr = []; this.spawnT = 1.2;
@@ -1388,6 +1444,7 @@ SCENES.l3 = {
       if (this.py < -34 && Math.abs(h.x - 56) < 22) {
         this.heartsArr.splice(i, 1);
         stats.hearts++; sfx.heart(); buzz(15);
+        if (this.hp < 3) { this.hp++; setHearts(this.hp, 3); }   // 捡到爱心回一格血
         if (stats.hearts % 3 === 0) navSay(CONFIG.sweetLines[Math.floor(Math.random() * CONFIG.sweetLines.length)]);
       }
     }
@@ -1490,7 +1547,7 @@ SCENES.l3 = {
 /* ---- L4 求婚（长按读信 + 接戒指） ---- */
 SCENES.l4 = {
   t: 0, phase: "hold", holding: false, progress: 0, done: false, tears: [], petals: [],
-  mt: 0, mx: 108, token: 0, ringY: 0,
+  mt: 0, drag: false, mx: 48, tx: 48, token: 0,
   lines: [
     "从申请书上的多看了两眼，",
     "到一把故意的伞，到雨夜摩托车上抱紧我的你，",
@@ -1501,7 +1558,7 @@ SCENES.l4 = {
   shown: 0,
   enter(tok) {
     this.token = tok; this.t = 0; this.progress = 0; this.done = false; this.shown = 0;
-    this.phase = "hold"; this.mt = 0; this.mx = 108;
+    this.phase = "hold"; this.mt = 0; this.mx = 48; this.tx = 48; this.drag = false;
     this.tears = []; this.petals = []; this.holding = false;
     Chip.mood("love");
     setLevel("第 5 关 · 求婚");
@@ -1533,23 +1590,24 @@ SCENES.l4 = {
           sfx.tap();
         }
         if (this.progress >= 1) {
-          this.phase = "ring"; this.mt = 0;
+          this.phase = "ring"; this.mt = 0; this.mx = 48; this.tx = 48; this.drag = false;
           $("#l4bar").classList.remove("show");
           hintOff();
-          hint("话读完了——戒指荡到粉色区域时，点一下屏幕，把它接稳！", true);
+          hint("话读完了——拖动屏幕，把戒指放进粉色区域，松手", true);
         }
       }
     } else if (this.phase === "ring") {
       this.mt += dt;
-      this.mx = 108 + Math.sin(this.mt * 2.6) * 56;
+      this.mx += (this.tx - this.mx) * Math.min(1, dt * 14);   // 戒指跟随手指，带一点阻尼
     }
   },
   tryRing() {
-    if (Math.abs(this.mx - 108) <= 24) {
+    if (Math.abs(this.mx - 108) <= 22) {
       this.finish();
     } else {
       sfx.hit(); buzz(40);
       showToast(CONFIG.ringMissLines[Math.floor(Math.random() * CONFIG.ringMissLines.length)]);
+      this.mx = 48; this.tx = 48;   // 没放稳，戒指回到起点重来
     }
   },
   finish() {
@@ -1609,7 +1667,7 @@ SCENES.l4 = {
       // 钻
       ctx.fillStyle = "#f7f3ea"; ctx.fillRect(mx - 2, ty - 13, 4, 4);
       ctx.font = "8px sans-serif"; ctx.fillStyle = "#f5f0e6"; ctx.textAlign = "center";
-      ctx.fillText("点一下，接住它", 108, ty + 20);
+      drawText("拖动屏幕 · 把戒指放进粉色区域", 108, ty + 20);
     }
     // 泪滴
     ctx.fillStyle = "#9fc4e8";
@@ -1623,7 +1681,13 @@ SCENES.l4 = {
   },
   pointer(type, x, y) {
     if (this.done || Dlg.active) return;
-    if (this.phase === "ring") { if (type === "down") this.tryRing(); return; }
+    if (this.phase === "ring") {
+      const cl = v => Math.max(48, Math.min(168, v));
+      if (type === "down") { this.drag = true; this.tx = cl(x); }
+      else if (type === "move") { if (this.drag) this.tx = cl(x); }
+      else if (type === "up") { this.drag = false; this.tryRing(); }
+      return;
+    }
     this.holding = type === "down";
   }
 };
@@ -1658,6 +1722,7 @@ function loop(now) {
     if (scene.draw) scene.draw(now);
     else if (scene === SCENES.title) drawTitleBG(now);
   }
+  flushText();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -1680,9 +1745,16 @@ function release() {
   if (!$("#invite").classList.contains("hide")) return;
   if (scene && scene.pointer && !Dlg.active) scene.pointer("up");
 }
+function pointerMove(x, y) {
+  if (!$("#invite").classList.contains("hide")) return;
+  if (Dlg.active) return;
+  if (!scene || !scene.pointer) return;
+  scene.pointer("move", x, y);
+}
 
 /* 鼠标（桌面） */
 cv.addEventListener("mousedown", e => { const p = toInternal(e); press(p.x, p.y); });
+cv.addEventListener("mousemove", e => { const p = toInternal(e); pointerMove(p.x, p.y); });
 window.addEventListener("mouseup", release);
 
 /* 触控（手机，preventDefault 防微信下拉刷新 / 长按菜单 / 双击缩放） */
@@ -1693,6 +1765,12 @@ cv.addEventListener("touchstart", e => {
   const p = toInternal(t);
   press(p.x, p.y);
 }, { passive: false });
+cv.addEventListener("touchmove", e => {
+  if (!$("#invite").classList.contains("hide")) return;
+  const t = e.changedTouches[0];
+  const p = toInternal(t);
+  pointerMove(p.x, p.y);
+}, { passive: true });
 window.addEventListener("touchend", () => {
   if (!$("#invite").classList.contains("hide")) return;
   release();   // 注意：这里不能 preventDefault，否则按钮的 click 不会被合成，所有按钮在手机上全部失灵
@@ -1724,6 +1802,7 @@ window.addEventListener("keyup", e => { keys[e.code] = false; });
 function saveLevel(n) { store.set("wg_level", Math.max(n, +store.get("wg_level") || 0)); }
 
 /* ================= 流程按钮 ================= */
+const LV_MAP = { 1: "l1", 2: "l2", 3: "walk", 4: "l3", 5: "l4" };
 function newGame() {
   audio(); sfx.tap();
   resetStats(); resetShards();
@@ -1733,15 +1812,39 @@ function newGame() {
   startGameMusic();
   go("l1");
 }
-$("#btn-start").addEventListener("click", newGame);
-$("#btn-restart").addEventListener("click", newGame);
-$("#btn-continue").addEventListener("click", () => {
-  audio(); sfx.tap(); $("#title").classList.add("hide");
-  const lv = +store.get("wg_level") || 1;
-  if (lv >= 6) { showInvite(); return; }
-  const map = { 1: "l1", 2: "l2", 3: "walk", 4: "l3", 5: "l4" };
+/* 直接跳到任意一关（随时可以回去重玩前面；也用于游戏中途选关） */
+function startAt(lv) {
+  audio(); sfx.tap();
+  resetStats();
+  /* 硬关闭对白：不能走 Dlg.close()——那会触发 onDone 回调造成双重跳转 */
+  Dlg.active = false;
+  clearInterval(Dlg.timer); clearTimeout(Dlg.timer);
+  Dlg.onDone = null;
+  $("#dlg").classList.remove("show");
+  $("#lvsel-panel").classList.add("hide");
+  $("#title").classList.add("hide");
+  $("#finale").classList.add("hide");
+  $("#invite").classList.add("hide");
+  document.body.classList.add("playing");
+  document.body.classList.remove("scrollable");
   startGameMusic();
-  go(map[Math.min(5, Math.max(1, lv))]);
+  go(LV_MAP[lv] || "l1");
+}
+/* 游戏中途选关面板 */
+$("#lvsel").addEventListener("click", () => { audio(); sfx.tap(); $("#lvsel-panel").classList.remove("hide"); });
+$("#lvsel-close").addEventListener("click", () => { sfx.tap(); $("#lvsel-panel").classList.add("hide"); });
+$("#lvsel-panel").addEventListener("click", e => { if (e.target.id === "lvsel-panel") $("#lvsel-panel").classList.add("hide"); });
+document.querySelectorAll("#lvsel-panel .lv-btn").forEach(b => b.addEventListener("click", () => startAt(+b.dataset.lv)));
+$("#btn-start").addEventListener("click", newGame);
+/* 标题页的「跳过游戏，直接看邀请函」 */
+$("#btn-skip-title").addEventListener("click", () => { audio(); stats.skipped = true; saveLevel(5); showInvite(); });
+/* 从邀请函回到选关 */
+$("#btn-levels").addEventListener("click", () => {
+  audio(); sfx.tap();
+  $("#invite").classList.add("hide");
+  document.body.classList.remove("scrollable");
+  document.body.classList.add("playing");
+  go("title");
 });
 $("#btn-invite").addEventListener("click", () => { sfx.jingle(); showInvite(); });
 $("#btn-replay").addEventListener("click", newGame);
@@ -1776,7 +1879,15 @@ function showFinale() {
   renderFinaleExtras();
   $("#finale").classList.remove("hide");
 }
+/* 十年邮票：已收集的碎片点亮对应邮票，最后一枚「我们结婚了」始终待集齐 */
+function renderStamps() {
+  const got = getShards();
+  document.querySelectorAll(".stamps .stamp[data-shard]").forEach(el => {
+    el.classList.toggle("got", got.indexOf(el.dataset.shard) >= 0);
+  });
+}
 function showInvite() {
+  renderStamps();
   Chip.stop();
   if (CONFIG.music) {
     playBgm();                                                      // BGM 从游戏延续到邀请函，不切歌
@@ -1786,6 +1897,10 @@ function showInvite() {
   }
   scene = SCENES.finale;
   $("#finale").classList.add("hide");
+  /* 每次进入都从「拆信」开始（从选关回到邀请函时也能重看一遍） */
+  $("#envelope-sec").classList.remove("opened");
+  $("#envelope-sec").style.display = "";
+  $("#letter-body").classList.remove("show");
   $("#invite").classList.remove("hide");
   document.body.classList.remove("playing");
   document.body.classList.add("scrollable");
@@ -1800,42 +1915,36 @@ const [Y, M, D] = dPart.split("-").map(Number);
 const [hh, mm] = tPart.split(":").map(Number);
 const WED = new Date(Y, M - 1, D, hh, mm);
 const WEEK = "日一二三四五六";
-const CN = "〇一二三四五六七八九";
-const cnNum = n => String(n).split("").map(c => CN[+c]).join("");
-const cnMonth = m => m === 10 ? "十" : m < 10 ? CN[m] : m === 11 ? "十一" : "十二";
-const cnDay = d => {
-  const t = "一二三四五六七八九";
-  if (d <= 10) return d === 10 ? "十" : t[d - 1];
-  if (d < 20) return "十" + t[d - 11];
-  if (d === 20) return "二十";
-  if (d < 30) return "二十" + t[d - 21];
-  if (d === 30) return "三十";
-  return "三十" + t[d - 31];
-};
 const dayPeriod = h => h < 11 ? "上午" : h < 13 ? "中午" : h < 17 ? "下午" : "晚上";
 
-document.title = CONFIG.groom + " & " + CONFIG.bride + " · 十年副本";
+document.title = CONFIG.groom + " & " + CONFIG.bride + " · 我们的十年";
 $("#t-names").textContent = (CONFIG.groom[0] || "") + " & " + (CONFIG.bride[0] || "");
 $("#i-names").innerHTML = CONFIG.groom + '<span class="amp">&</span>' + CONFIG.bride;
-$("#i-date").textContent = Y + "." + p2(M) + "." + p2(D) + " · 星期" + WEEK[WED.getDay()] + " · " + tPart;
-$("#i-den").textContent = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][M - 1] + " " + p2(D) + ", " + Y;
-$("#i-dzh").textContent = cnNum(Y) + "年" + cnMonth(M) + "月" + cnDay(D) + "日 · 星期" + WEEK[WED.getDay()] + " · " + dayPeriod(hh) + " " + tPart;
+$("#i-date").textContent = Y + "年" + M + "月" + D + "日 · 星期" + WEEK[WED.getDay()] + " · " + tPart;
+$("#i-den").textContent = Y + "年" + M + "月" + D + "日";
+$("#i-dzh").textContent = "星期" + WEEK[WED.getDay()] + " · " + dayPeriod(hh) + " " + tPart;
 $("#i-venue").textContent = CONFIG.venue;
+const hallTxt = CONFIG.hall ? "宴会厅 · " + CONFIG.hall : "";
+$("#i-hall").textContent = hallTxt;
+$("#i-hall").classList.toggle("hide", !hallTxt);
 $("#i-addr").textContent = CONFIG.address;
 $("#i-hero-img").src = CONFIG.heroImg;
-$("#i-nav").href = "https://uri.amap.com/search?keyword=" + encodeURIComponent(CONFIG.mapKeyword || CONFIG.venue) +
-                   "&city=" + encodeURIComponent(CONFIG.city) + "&src=wedding&callnative=1";
+/* 一键导航：微信内置浏览器会拦截 target=_blank 新开窗口，导致「点了没反应」——
+   改为手动接管：先给反馈，再 window.open，失败（被拦截）则降级为当前页跳转 */
+const NAV_URL = "https://uri.amap.com/search?keyword=" + encodeURIComponent(CONFIG.mapKeyword || CONFIG.venue) +
+                "&city=" + encodeURIComponent(CONFIG.city) + "&src=wedding&callnative=1";
+$("#i-nav").href = NAV_URL;
+$("#i-nav").addEventListener("click", e => {
+  e.preventDefault();
+  showToast("正在打开高德地图…");
+  setTimeout(() => {
+    const w = window.open(NAV_URL, "_blank");
+    if (!w) window.location.href = NAV_URL;   // 微信等 webview：新开被拦，就地跳转
+  }, 220);
+});
 
-/* 称呼个性化：信封上的名字 → 信纸抬头 */
-$("#letter-date").textContent = cnNum(Y) + "年" + cnMonth(M) + "月" + cnDay(D) + "日";
-function applyGuestName(n) {
-  const name = (n || "").trim();
-  $("#letter-name").textContent = name || "你";
-  if ($("#guest-name").value !== name) $("#guest-name").value = name;
-  store.set("wg_guest", name);
-}
-applyGuestName(store.get("wg_guest") || "");
-$("#guest-name").addEventListener("input", e => applyGuestName(e.target.value));
+/* 信纸落款日期 */
+$("#letter-date").textContent = Y + "年" + M + "月" + D + "日";
 
 /* 拆信 */
 function openLetter() {
@@ -1846,7 +1955,7 @@ function openLetter() {
   setTimeout(() => { $("#envelope-sec").style.display = "none"; $("#invite").scrollTop = 0; }, 1000);
 }
 $("#seal").addEventListener("click", openLetter);
-$("#envelope").addEventListener("click", e => { if (e.target.id !== "guest-name") openLetter(); });
+$("#envelope").addEventListener("click", openLetter);
 
 /* 新人彩蛋：只有他们俩知道的日子 */
 $("#egg-hint").addEventListener("click", () => {
@@ -1884,45 +1993,26 @@ function tick() {
 }
 tick(); cdTimer = setInterval(tick, 1000);
 
-/* ICS 日历 */
-const endDate = new Date(WED.getTime() + 3 * 3600 * 1000);
-const ics = [
-  "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wedding-game//CN", "BEGIN:VEVENT",
-  "UID:wedding-" + Y + p2(M) + p2(D) + "@invite",
-  "DTSTART:" + Y + p2(M) + p2(D) + "T" + p2(hh) + p2(mm) + "00",
-  "DTEND:" + endDate.getFullYear() + p2(endDate.getMonth() + 1) + p2(endDate.getDate()) + "T" + p2(endDate.getHours()) + p2(endDate.getMinutes()) + "00",
-  "SUMMARY:" + CONFIG.groom + " & " + CONFIG.bride + " · 婚礼",
-  "LOCATION:" + CONFIG.address,
-  "END:VEVENT", "END:VCALENDAR"
-].join("\r\n");
-$("#i-ics").addEventListener("click", e => {
-  e.preventDefault();
-  const a = document.createElement("a");
-  a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-  a.download = "婚礼邀请.ics";
-  a.click();
-});
-
-/* 回执 */
-let attend = true, count = 2;
-const yBtn = $("#att-yes"), nBtn = $("#att-no");
-yBtn.addEventListener("click", () => { attend = true; yBtn.classList.add("sel"); nBtn.classList.remove("sel"); });
-nBtn.addEventListener("click", () => { attend = false; nBtn.classList.add("sel"); yBtn.classList.remove("sel"); });
-$("#cnt-minus").addEventListener("click", () => { count = Math.max(1, count - 1); $("#cnt-num").textContent = count; });
-$("#cnt-plus").addEventListener("click", () => { count = Math.min(20, count + 1); $("#cnt-num").textContent = count; });
-$("#rsvp-copy").addEventListener("click", async () => {
-  const name = $("#rsvp-name").value.trim();
-  if (name) applyGuestName(name);   // RSVP 里的称呼同步到信纸抬头
-  const msg = attend
-    ? "【婚礼回执】" + (name || "朋友") + "：如期出席，共" + count + "人。"
-    : "【婚礼回执】" + (name || "朋友") + "：遗憾缺席，祝新婚快乐！";
-  try { await navigator.clipboard.writeText(msg); }
+/* 复制时间地点：微信内置浏览器下载 .ics 基本无效，改为可靠的一键复制 */
+$("#i-copy").addEventListener("click", async () => {
+  const hallLine = CONFIG.hall ? CONFIG.venue + " · " + CONFIG.hall : CONFIG.venue;
+  const msg = "【婚礼邀请】" + CONFIG.groom + " & " + CONFIG.bride + "\n" +
+              Y + "年" + M + "月" + D + "日（星期" + WEEK[WED.getDay()] + "）" + dayPeriod(hh) + " " + tPart + " 开席\n" +
+              hallLine + "\n" + CONFIG.address;
+  let ok = false;
+  try { await navigator.clipboard.writeText(msg); ok = true; }
   catch {
-    const ta = document.createElement("textarea");
-    ta.value = msg; document.body.appendChild(ta); ta.select();
-    document.execCommand("copy"); ta.remove();
+    /* 微信等 webview 可能没有 navigator.clipboard，降级到 execCommand */
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = msg;
+      ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand("copy");
+      ta.remove();
+    } catch (e) { ok = false; }
   }
-  showToast("已复制，请把回执发给我们");
+  showToast(ok ? "已复制时间地点，粘贴到日历或备忘录即可" : "复制没成功，可以长按上面的日期和地址手动复制");
 });
 
 /* 音乐按钮：有 BGM 文件时全程控制它；否则控制内置八音盒引擎 */
@@ -1940,22 +2030,18 @@ $("#music-btn").addEventListener("click", () => {
 
 /* 启动 */
 /* 预加载 BGM：页面打开就开始缓冲，点「开始游戏」时音乐即刻响起，不用等下载
-   音频走 jsDelivr CDN（国内访问快得多），加载失败自动回退到本站 */
+   音频用同目录本地文件（bgm.m4a），不再走第三方 CDN——jsDelivr 在国内经常加载失败 */
 if (CONFIG.music) {
   const bgm = $("#bgm");
   bgm.preload = "auto";
-  bgm.src = "https://cdn.jsdelivr.net/gh/yimcha/wedding-invite@e2cb283/bgm.m4a";
-  bgm.addEventListener("error", function fb() {
-    bgm.removeEventListener("error", fb);
-    bgm.src = CONFIG.music;
-    bgm.load();
-  });
+  bgm.src = CONFIG.music;
   bgm.load();
   /* 手机微信等 WebView 会挂起媒体下载：缓冲一够就自动续播，避免"慢半拍" */
   bgm.addEventListener("canplay", () => {
     if (gameStarted && !userMuted && bgm.paused) playBgm();
   });
 }
+renderStamps();
 go("title");
 </script>
 </body>
