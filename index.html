@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v7 · BGM 预加载+响度均衡 · 2026-10-16 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v9 · BGM 压缩至64k+canplay自动续播+预加载加固 · 2026-10-19 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -349,7 +349,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 </div>
 
 <button id="music-btn" aria-label="播放音乐"><span class="disc"></span></button>
-<audio id="bgm" loop preload="none"></audio>
+<audio id="bgm" loop preload="auto"></audio>
 <div id="toast"></div>
 
 <script>
@@ -1945,6 +1945,12 @@ if (CONFIG.music) {
   bgm.preload = "auto";
   bgm.src = CONFIG.music;
   bgm.load();
+  /* 手机微信等 WebView 会挂起媒体下载：缓冲一够就自动续播，避免"慢半拍" */
+  bgm.addEventListener("canplay", () => {
+    if (gameStarted && !userMuted && bgm.paused) playBgm();
+  });
+  /* 首次触摸时再踢一脚加载（部分 WebView 页面加载期间不下载媒体） */
+  document.addEventListener("pointerdown", () => { bgm.load(); }, { once: true });
 }
 go("title");
 </script>
