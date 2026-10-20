@@ -1252,7 +1252,7 @@ SCENES.l2 = {
       this.holding = true;
       this.px = Math.min(this.px + 14, this.herX - CHAR_PW - 2);   // 点一下也往前挪一小步
       sfx.tap();
-    } else this.holding = false;
+    } else if (type === "up") this.holding = false;   // 只有松手才算松手：手指抖动会发 move，不能中断按住
   }
 };
 
@@ -1391,7 +1391,7 @@ SCENES.walk = {
       return;
     }
     if (type === "down") { this.holding = true; this.px = Math.min(this.px + 9, this.pathEnd); sfx.tap(); }
-    else this.holding = false;
+    else if (type === "up") this.holding = false;   // 手指抖动的 move 不能中断按住
   }
 };
 
@@ -1688,6 +1688,7 @@ SCENES.l4 = {
       else if (type === "up") { this.drag = false; this.tryRing(); }
       return;
     }
+    if (type === "move") return;                     // 读信长按期间手指抖动不能中断
     this.holding = type === "down";
   }
 };
