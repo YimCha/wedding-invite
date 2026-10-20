@@ -14,7 +14,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v12 · 姓名显示顺序与海报对齐（新娘在前）· 2026-10-20。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v13 · 音乐起播加速（m4a faststart + 首触解锁媒体加载 + 照片延后下载 + 失败回退）· 2026-10-20。分享链接记得带 ?v=N 防缓存 -->
+<!-- 不在这里 rel=preload 音频：实测它会和播放器自己的请求并发，两条流互抢带宽反而更慢 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1890,6 +1891,10 @@ function renderStamps() {
 function showInvite() {
   renderStamps();
   Chip.stop();
+  const hero = $("#i-hero-img");
+  if (hero.dataset.src && !hero.src) {         // 邀请函展开时才真正下载主视觉照片
+    hero.src = hero.dataset.src;
+  }
   if (CONFIG.music) {
     playBgm();                                                      // BGM 从游戏延续到邀请函，不切歌
     $("#music-btn").classList.add("show", "playing");
@@ -1933,7 +1938,7 @@ const hallTxt = CONFIG.hall ? "宴会厅 · " + CONFIG.hall : "";
 $("#i-hall").textContent = hallTxt;
 $("#i-hall").classList.toggle("hide", !hallTxt);
 $("#i-addr").textContent = CONFIG.address;
-$("#i-hero-img").src = CONFIG.heroImg;
+$("#i-hero-img").dataset.src = CONFIG.heroImg;   // 主视觉照片延后到邀请函展开时再下（别在标题页和 BGM 抢带宽）
 /* 一键导航：微信内置浏览器会拦截 target=_blank 新开窗口，导致「点了没反应」——
    改为手动接管：先给反馈，再 window.open，失败（被拦截）则降级为当前页跳转 */
 const NAV_URL = "https://uri.amap.com/search?keyword=" + encodeURIComponent(CONFIG.mapKeyword || CONFIG.venue) +
@@ -2044,6 +2049,24 @@ if (CONFIG.music) {
   /* 手机微信等 WebView 会挂起媒体下载：缓冲一够就自动续播，避免"慢半拍" */
   bgm.addEventListener("canplay", () => {
     if (gameStarted && !userMuted && bgm.paused) playBgm();
+  });
+  /* iOS/微信 WebView 常把媒体预加载挂起到首次手势：页面上一有触摸/点击就催一下开始加载，
+     这样「读标题页 + 点开始」这段手势之后的时间都在下载，而不是等点击那一刻才开始。
+     只在播放器自己没在加载时才催（避免和播放器的请求并发抢带宽）。 */
+  const primeBgm = () => {
+    if (!CONFIG.music || bgm.dataset.fallback === "1") return;
+    if (bgm.networkState === 2 || bgm.readyState > 0) return;   // 2 = NETWORK_LOADING：已经在下了
+    bgm.load();
+  };
+  document.addEventListener("touchstart", primeBgm, { once: true, passive: true });
+  document.addEventListener("mousedown", primeBgm, { once: true });
+  /* 音频加载失败（弱网/文件缺失/被拦截）：回退内置八音盒引擎，至少不会全程静音 */
+  bgm.addEventListener("error", () => {
+    if (bgm.dataset.fallback === "1") return;
+    bgm.dataset.fallback = "1";
+    CONFIG.music = "";
+    if (gameStarted && !userMuted) Chip.start();
+    $("#music-btn").classList.toggle("playing", Chip.on);
   });
 }
 renderStamps();
