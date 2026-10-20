@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v14 · 音乐起播加速第二阶段（fetch-as-blob 提前下载 + 48kbps 单声道 + 拉丁字体延后 + ?debug=1 诊断浮层）· 2026-10-20 -->
+<!-- 版本：v15 · 仅升音频地址 ?v=15（强制冷下载，用于真机定位）· 诊断浮层增加「出声时已缓冲」与「缓冲够连续播放耗时」· 2026-10-20 -->
 <!-- 不在这里 rel=preload 音频：实测它会和播放器自己的请求并发，两条流互抢带宽反而更慢 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -399,7 +399,7 @@ const CONFIG = {
   address: "江西省上饶市信州区凤凰中大道999号",
   city: "上饶",
   mapKeyword: "上饶鑫邦大酒店",      // 用完整酒店名导航，避免搜到婺源同名酒店
-  music: "bgm.m4a?v=14",             // 全程背景音乐：《遇见》钢琴纯音乐版（单声道 48kbps，与本文件同目录；留空则回退到内置八音盒引擎）
+  music: "bgm.m4a?v=15",             // 全程背景音乐：《遇见》钢琴纯音乐版（单声道 48kbps，与本文件同目录；留空则回退到内置八音盒引擎）
 
   /* --- 结局邀请函主视觉照片（真实结婚照，已裁掉摄影工作室水印） --- */
   heroImg: "photos/wedding.jpg",
@@ -2081,26 +2081,32 @@ if (CONFIG.music) {
     if (gameStarted && !userMuted) Chip.start();
     $("#music-btn").classList.toggle("playing", Chip.on);
   });
-  /* ?debug=1：临时诊断浮层。判读：点击前已缓冲 0s 且网络态不是 2 → 说明音频直到手势才开始下（微信挂起已坐实）；
-     点击前已缓冲 > 0s → 提前下载成功，剩下的就看缓冲速度。 */
+  /* ?debug=1：临时诊断浮层。判读：
+     ① 点击前缓冲 0s 且 net≠2 → 音频直到手势才开始下（微信挂起已坐实）
+     ② 出声时已缓冲 ≈ 12s → 播前只需一小段；≈ 180s（整首）→ WebView 要下完整首才能播 */
   if (/[?&]debug=1/.test(location.search)) {
     const box = document.createElement("div");
     box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:999;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.6 monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none";
     document.body.appendChild(box);
     const t0 = performance.now();
-    let cyAt = 0, tapAt = 0, playAt = 0, bufAtTap = "", netAtTap = "";
+    let cyAt = 0, tapAt = 0, playAt = 0, r4At = 0, bufAtTap = "", netAtTap = "", bufAtPlay = "";
+    const bufNow = () => bgm.buffered.length ? bgm.buffered.end(0) : 0;
     bgm.addEventListener("canplay", () => { if (!cyAt) cyAt = performance.now() - t0; });
+    bgm.addEventListener("canplaythrough", () => { if (!r4At) r4At = performance.now() - t0; });
     $("#btn-start").addEventListener("click", () => {
       tapAt = performance.now() - t0;
       netAtTap = bgm.networkState;
-      bufAtTap = bgm.buffered.length ? bgm.buffered.end(0).toFixed(1) : "0";
+      bufAtTap = bufNow().toFixed(1);
     });
     setInterval(() => {
-      if (!playAt && !bgm.paused && bgm.currentTime > 0.05) playAt = performance.now() - t0;
-      const buf = bgm.buffered.length ? bgm.buffered.end(0) : 0;
+      if (!playAt && !bgm.paused && bgm.currentTime > 0.05) {
+        playAt = performance.now() - t0;
+        bufAtPlay = bufNow().toFixed(1);
+      }
       box.textContent =
-        "net=" + bgm.networkState + " ready=" + bgm.readyState + " 已缓冲=" + buf.toFixed(1) + "s\n" +
-        "canplay=" + (cyAt ? Math.round(cyAt) + "ms" : "-") + "\n" +
+        "net=" + bgm.networkState + " ready=" + bgm.readyState + " 已缓冲=" + bufNow().toFixed(1) + "s\n" +
+        "canplay=" + (cyAt ? Math.round(cyAt) + "ms" : "-") + " 出声时已缓冲=" + (bufAtPlay || "-") + "s\n" +
+        "够连续播放=" + (r4At ? Math.round(r4At) + "ms" : "-") + "\n" +
         "点击=" + (tapAt ? Math.round(tapAt) + "ms" : "-") + " 点击前缓冲=" + (bufAtTap || "-") + "s net=" + (netAtTap === "" ? "-" : netAtTap) + "\n" +
         "真正出声=" + (playAt ? Math.round(playAt) + "ms" : "-");
     }, 200);
