@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v17 · 完整曲子改为 6 段接力播放：第一段 127KB 点开就响，其余段在后台整段预载、段间同素材交叉淡化交接 · 2026-10-20 -->
+<!-- 版本：正式版（2026-10-20）· 完整《遇见》分 6 段接力播放：第一段 127KB 点开就响，其余段后台整段预载、段间同素材交叉淡化交接 -->
 <!-- 不在这里 rel=preload 音频：实测它会和播放器自己的请求并发，两条流互抢带宽反而更慢 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -644,7 +644,6 @@ const bgmEls = [$("#bgm"), $("#bgm2")];
 let bgmReady = CONFIG.music.length > 0;
 let bgmCur = -1, bgmSlot = 0;       // 正在播的段号、正在播的缓冲槽
 let bgmWasPlaying = false, bgmBusy = false;
-let bgmTurns = 0, bgmSkew = 0;      // 诊断用：换段次数、下一段起播时的对齐误差(ms)
 function bgmLoad(slot, seg) {       // 备好某槽：整段预载第 seg 段
   const el = bgmEls[slot];
   el.dataset.seg = seg;
@@ -674,7 +673,6 @@ function bgmFade(out, nxt, secs) {  // 线性音量交叉淡化
 function bgmTurn() {                // 翻页：槽与段号各前进一位（空槽的预载交给 bgmTick）
   bgmSlot = 1 - bgmSlot;
   bgmCur = (bgmCur + 1) % CONFIG.music.length;
-  bgmTurns++;
 }
 function bgmHandover(out, nxt) {    // 等素材交接：下一段从头播，与 out 对齐后交叉淡化
   bgmBusy = true;
@@ -685,7 +683,6 @@ function bgmHandover(out, nxt) {    // 等素材交接：下一段从头播，�
     if (nxt.currentTime <= 0) return;
     clearInterval(t);
     const want = out.currentTime - (out.duration - 2 * XF);
-    bgmSkew = Math.round((nxt.currentTime - want) * 1000);
     if (Math.abs(nxt.currentTime - want) > .03) nxt.currentTime = Math.max(0, want);
     bgmFade(out, nxt, Math.min(2 * XF, out.duration - out.currentTime));
     bgmTurn();
@@ -2156,25 +2153,6 @@ if (bgmReady) {
     if (gameStarted && !userMuted) Chip.start();
     $("#music-btn").classList.toggle("playing", Chip.on);
   }));
-  /* ?debug=1：临时诊断浮层（段号／本段缓冲进度／换段次数／交接对齐误差／起播耗时）
-     「对齐误差」是下一段起播时比理想位置早了(+)或晚了(−)多少毫秒，越接近 0 越听不出接缝 */
-  if (/[?&]debug=1/.test(location.search)) {
-    const box = document.createElement("div");
-    box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:999;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.6 monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none";
-    document.body.appendChild(box);
-    let tapAt = 0, playAt = 0;
-    $("#btn-start").addEventListener("click", () => { tapAt = performance.now(); });
-    setInterval(() => {
-      if (!playAt && bgmPlaying()) playAt = performance.now();
-      const el = bgmEls[Math.max(bgmSlot, 0)];
-      const buf = el.buffered.length ? el.buffered.end(0) : 0;
-      box.textContent =
-        "段=" + (bgmCur + 1) + "/" + CONFIG.music.length + " ready=" + el.readyState +
-        " 本段缓冲=" + buf.toFixed(1) + "/" + (el.duration || 0).toFixed(1) + "s\n" +
-        "已换段=" + bgmTurns + "  对齐误差=" + bgmSkew + "ms  起播=" +
-        (tapAt && playAt ? Math.round(playAt - tapAt) + "ms" : "-");
-    }, 200);
-  }
 }
 renderStamps();
 go("title");
