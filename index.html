@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v10 · BGM 走 jsDelivr CDN + 移除加载重置 · 2026-10-19 《遇见》钢琴纯音乐 BGM 版。每次更新后分享链接记得带 ?v=N 防缓存 -->
+<!-- 版本：v12 · 姓名显示顺序与海报对齐（新娘在前）· 2026-10-20。每次更新后分享链接记得带 ?v=N 防缓存 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#141a28">
 <meta name="format-detection" content="telephone=no">
-<title>我们的十年 · 陈家昊 & 杨晓燕</title>
+<title>我们的十年 · 杨晓燕 & 陈家昊</title>
 <link rel="preconnect" href="https://fonts.loli.net">
 <link href="https://fonts.loli.net/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -258,7 +258,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
       <div class="t-eyebrow">A WEDDING QUEST</div>
       <div class="t-main">我们的十年</div>
       <div class="t-sub">一场需要通关才能拆开的婚礼邀请函</div>
-      <div class="t-names" id="t-names">CHEN &amp; YANG</div>
+      <div class="t-names" id="t-names">杨 &amp; 陈</div>
       <button class="t-btn" id="btn-start">开 始 游 戏</button>
       <button class="t-skip" id="btn-skip-title">跳过游戏，直接看邀请函 »</button>
       <div class="t-tip">约 4 分钟 · 共 5 个小关卡</div>
@@ -308,7 +308,7 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
         <div class="wed-heart">❤</div>
       </div>
       <p class="sign">这故事，还有后续。<br>想请你，亲眼见证。</p>
-      <p class="sign-names">—— 陈家昊 &amp; 杨晓燕</p>
+      <p class="sign-names">—— 杨晓燕 &amp; 陈家昊</p>
     </div>
   </section>
 
@@ -1918,9 +1918,13 @@ const WED = new Date(Y, M - 1, D, hh, mm);
 const WEEK = "日一二三四五六";
 const dayPeriod = h => h < 11 ? "上午" : h < 13 ? "中午" : h < 17 ? "下午" : "晚上";
 
-document.title = CONFIG.groom + " & " + CONFIG.bride + " · 我们的十年";
-$("#t-names").textContent = (CONFIG.groom[0] || "") + " & " + (CONFIG.bride[0] || "");
-$("#i-names").innerHTML = CONFIG.groom + '<span class="amp">&</span>' + CONFIG.bride;
+/* 展示用姓名顺序：与海报一致 —— 新娘在前（照片里新娘在左） */
+const NAMES = [CONFIG.bride, CONFIG.groom];
+const NAME_PAIR = NAMES.join(" & ");
+const NAME_INITIALS = NAMES.map(n => n[0] || "").join(" & ");
+document.title = NAME_PAIR + " · 我们的十年";
+$("#t-names").textContent = NAME_INITIALS;
+$("#i-names").innerHTML = NAMES[0] + '<span class="amp">&</span>' + NAMES[1];
 $("#i-date").textContent = Y + "年" + M + "月" + D + "日 · 星期" + WEEK[WED.getDay()] + " · " + tPart;
 $("#i-den").textContent = Y + "年" + M + "月" + D + "日";
 $("#i-dzh").textContent = "星期" + WEEK[WED.getDay()] + " · " + dayPeriod(hh) + " " + tPart;
@@ -1997,7 +2001,7 @@ tick(); cdTimer = setInterval(tick, 1000);
 /* 复制时间地点：微信内置浏览器下载 .ics 基本无效，改为可靠的一键复制 */
 $("#i-copy").addEventListener("click", async () => {
   const hallLine = CONFIG.hall ? CONFIG.venue + " · " + CONFIG.hall : CONFIG.venue;
-  const msg = "【婚礼邀请】" + CONFIG.groom + " & " + CONFIG.bride + "\n" +
+  const msg = "【婚礼邀请】" + NAME_PAIR + "\n" +
               Y + "年" + M + "月" + D + "日（星期" + WEEK[WED.getDay()] + "）" + dayPeriod(hh) + " " + tPart + " 开席\n" +
               hallLine + "\n" + CONFIG.address;
   let ok = false;
