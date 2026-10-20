@@ -14,7 +14,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<!-- 版本：v16 · 真机定位结论：微信 WebView 要等几乎整首缓冲完才出声 → BGM 截成 28 秒循环（1.37MB → 119KB）· 2026-10-20 -->
+<!-- 版本：v17 · 完整曲子改为 6 段接力播放：第一段 127KB 点开就响，其余段在后台整段预载、段间同素材交叉淡化交接 · 2026-10-20 -->
 <!-- 不在这里 rel=preload 音频：实测它会和播放器自己的请求并发，两条流互抢带宽反而更慢 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -379,7 +379,8 @@ body.scrollable{overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
 </div>
 
 <button id="music-btn" aria-label="播放音乐"><span class="disc"></span></button>
-<audio id="bgm" loop preload="auto"></audio>
+<audio id="bgm" preload="auto"></audio>
+<audio id="bgm2" preload="auto"></audio>
 <div id="toast"></div>
 
 <script>
@@ -399,7 +400,15 @@ const CONFIG = {
   address: "江西省上饶市信州区凤凰中大道999号",
   city: "上饶",
   mapKeyword: "上饶鑫邦大酒店",      // 用完整酒店名导航，避免搜到婺源同名酒店
-  music: "bgm.m4a?v=16",             // 全程背景音乐：《遇见》钢琴版 28 秒循环（单声道 32kbps，119KB；留空则回退到内置八音盒引擎）
+  /* --- 全程背景音乐：《遇见》完整曲子切成 6 段接力播放（小段才可能「点开就响」，见文件末尾 BGM 注释） --- */
+  music: [
+    "bgm-1.m4a?v=17",
+    "bgm-2.m4a?v=17",
+    "bgm-3.m4a?v=17",
+    "bgm-4.m4a?v=17",
+    "bgm-5.m4a?v=17",
+    "bgm-6.m4a?v=17",
+  ],                                 // 留空数组则回退到内置八音盒引擎
 
   /* --- 结局邀请函主视觉照片（真实结婚照，已裁掉摄影工作室水印） --- */
   heroImg: "photos/wedding.jpg",
@@ -621,30 +630,110 @@ const Chip = {
   }
 };
 let userMuted = false, gameStarted = false;
-/* 有音乐文件（CONFIG.music）时全程用它做 BGM（游戏+邀请函不断档）；没有时用内置八音盒引擎 */
-function playBgm() {
-  const bgm = $("#bgm");
-  if (!bgm.src) bgm.src = CONFIG.music;
-  bgm.loop = true; bgm.volume = .85;
-  bgm.play().catch(() => {});
+/* ================= BGM：完整曲子分 6 段接力播放 =================
+   微信 WebView 要等「整段文件」缓冲完才会出声（实测 canplay 与 canplaythrough
+   同时触发、触发时已缓冲 173s/220s），所以「点击→出声」≈ 该段文件的下载耗时。
+   于是把完整曲子切成小段接力：第 1 段 20 秒 / 127KB，点开就响；它播放的这 20 秒里
+   第 2 段（239KB）早已整段下完，第 2 段播的 38 秒里第 3 段下完……全程都是原曲，
+   不做任何裁剪。相邻段在文件层面故意重叠 XF 秒，交接时两个元素播的是同一段音乐，
+   线性音量交叉淡化，接缝处听不出来；最后一段尾接第一段头＝整首循环。
+   暂停的元素照样会把整段下完，所以「备用的那一段」正好拿来做后台预载。 */
+const XF = .25;                     // 相邻段的重叠／淡化时长（要大于元素起播延迟）
+const BGM_VOL = .85;
+const bgmEls = [$("#bgm"), $("#bgm2")];
+let bgmReady = CONFIG.music.length > 0;
+let bgmCur = -1, bgmSlot = 0;       // 正在播的段号、正在播的缓冲槽
+let bgmWasPlaying = false, bgmBusy = false;
+let bgmTurns = 0, bgmSkew = 0;      // 诊断用：换段次数、下一段起播时的对齐误差(ms)
+function bgmLoad(slot, seg) {       // 备好某槽：整段预载第 seg 段
+  const el = bgmEls[slot];
+  el.dataset.seg = seg;
+  el.src = CONFIG.music[seg];
+  el.volume = BGM_VOL;
+  el.load();
 }
+function bgmPlaying() { return bgmEls.some(el => !el.paused); }
+function bgmPlay() {
+  if (!bgmReady) return;
+  if (bgmCur < 0) {
+    if (bgmEls[0].dataset.seg === undefined) { bgmLoad(0, 0); bgmLoad(1, 1 % CONFIG.music.length); }
+    bgmCur = 0;
+  }
+  bgmEls[bgmSlot].play().catch(() => {});
+}
+function bgmPause() { bgmEls.forEach(el => el.pause()); }
+function bgmFade(out, nxt, secs) {  // 线性音量交叉淡化
+  const t0 = performance.now(), len = Math.max(secs, .02) * 1000;
+  const t = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / len);
+    out.volume = BGM_VOL * (1 - k);
+    nxt.volume = BGM_VOL * k;
+    if (k >= 1) clearInterval(t);
+  }, 20);
+}
+function bgmTurn() {                // 翻页：槽与段号各前进一位（空槽的预载交给 bgmTick）
+  bgmSlot = 1 - bgmSlot;
+  bgmCur = (bgmCur + 1) % CONFIG.music.length;
+  bgmTurns++;
+}
+function bgmHandover(out, nxt) {    // 等素材交接：下一段从头播，与 out 对齐后交叉淡化
+  bgmBusy = true;
+  nxt.currentTime = 0;
+  nxt.volume = 0;
+  nxt.play().catch(() => {});
+  const t = setInterval(() => {     // 等它真的开始走时间，再对齐一次、再开始淡化
+    if (nxt.currentTime <= 0) return;
+    clearInterval(t);
+    const want = out.currentTime - (out.duration - 2 * XF);
+    bgmSkew = Math.round((nxt.currentTime - want) * 1000);
+    if (Math.abs(nxt.currentTime - want) > .03) nxt.currentTime = Math.max(0, want);
+    bgmFade(out, nxt, Math.min(2 * XF, out.duration - out.currentTime));
+    bgmTurn();
+    bgmBusy = false;
+  }, 20);
+}
+function bgmLoopBack(out, nxt) {    // 最后一段尾 → 第一段头：静下来再起，等于整首循环
+  bgmBusy = true;
+  const go = () => {                // 等退场段自然播完（它尾巴本来就在淡出）再起第一段
+    nxt.currentTime = 0;
+    nxt.volume = BGM_VOL;
+    nxt.play().catch(() => {});
+    bgmTurn();
+    bgmBusy = false;
+  };
+  if (out.ended) return go();
+  bgmFade(out, nxt, Math.min(.4, out.duration - out.currentTime));
+  out.addEventListener("ended", go, { once: true });
+}
+function bgmTick() {                // 段尾前 2XF 秒交接；下一段还没整段下好就再等
+  if (bgmCur < 0 || !bgmReady) return;
+  const out = bgmEls[bgmSlot], idle = bgmEls[1 - bgmSlot];
+  const want = (bgmCur + 1) % CONFIG.music.length;
+  /* 空出来的槽要等退场段自然播完再接着预载下一段，否则会把正在淡出的尾巴截断 */
+  if ((idle.paused || idle.ended) && +idle.dataset.seg !== want) bgmLoad(1 - bgmSlot, want);
+  if (bgmBusy || !out.duration) return;
+  if (out.paused && !out.ended) return;
+  if (!out.ended && out.duration - out.currentTime > 2 * XF) return;
+  if (+idle.dataset.seg !== want || idle.readyState < 3) return;
+  if (want === 0) bgmLoopBack(out, idle); else bgmHandover(out, idle);
+}
+setInterval(bgmTick, 60);
 function startGameMusic() {
   gameStarted = true;
-  if (CONFIG.music) { if (!userMuted) playBgm(); }
+  if (bgmReady) { if (!userMuted) bgmPlay(); }
   else if (!userMuted) Chip.start();
   $("#music-btn").classList.add("show");
-  $("#music-btn").classList.toggle("playing", CONFIG.music ? !$("#bgm").paused : Chip.on);
+  $("#music-btn").classList.toggle("playing", bgmReady ? bgmPlaying() : Chip.on);
 }
 document.addEventListener("visibilitychange", () => {
-  const bgm = $("#bgm");
   if (document.hidden) {
     Chip.stop();
-    if (CONFIG.music && !bgm.paused) { bgm.pause(); bgm.dataset.wasPlaying = "1"; }
+    if (bgmReady && bgmPlaying()) { bgmPause(); bgmWasPlaying = true; }
     $("#music-btn").classList.remove("playing");
   } else if (gameStarted && !userMuted) {
-    if (CONFIG.music) { if (bgm.dataset.wasPlaying) { playBgm(); delete bgm.dataset.wasPlaying; } }
+    if (bgmReady) { if (bgmWasPlaying) { bgmPlay(); bgmWasPlaying = false; } }
     else if ($("#invite").classList.contains("hide")) { Chip.start(); }
-    if (CONFIG.music || Chip.on) $("#music-btn").classList.add("playing");
+    if (bgmReady || Chip.on) $("#music-btn").classList.add("playing");
   }
 });
 
@@ -1876,7 +1965,7 @@ function renderFinaleExtras() {
 }
 function showFinale() {
   Chip.stop();
-  if (!CONFIG.music) $("#music-btn").classList.remove("playing");   // 有 BGM 文件时音乐不断档
+  if (!bgmReady) $("#music-btn").classList.remove("playing");   // 有 BGM 时音乐不断档
   scene = SCENES.finale;
   renderFinaleExtras();
   $("#finale").classList.remove("hide");
@@ -1906,8 +1995,8 @@ function showInvite() {
   if (hero.dataset.src && !hero.src) {         // 邀请函展开时才真正下载主视觉照片
     hero.src = hero.dataset.src;
   }
-  if (CONFIG.music) {
-    playBgm();                                                      // BGM 从游戏延续到邀请函，不切歌
+  if (bgmReady) {
+    bgmPlay();                                                      // BGM 从游戏延续到邀请函，不切歌
     $("#music-btn").classList.add("show", "playing");
   } else {
     $("#music-btn").classList.remove("show", "playing");
@@ -2036,12 +2125,12 @@ $("#i-copy").addEventListener("click", async () => {
   showToast(ok ? "已复制时间地点，粘贴到日历或备忘录即可" : "复制没成功，可以长按上面的日期和地址手动复制");
 });
 
-/* 音乐按钮：有 BGM 文件时全程控制它；否则控制内置八音盒引擎 */
+/* 音乐按钮：有 BGM 时全程控制它；否则控制内置八音盒引擎 */
 $("#music-btn").addEventListener("click", () => {
-  if (CONFIG.music) {
-    const bgm = $("#bgm"), btn = $("#music-btn");
-    if (bgm.paused) { playBgm(); btn.classList.add("playing"); userMuted = false; }
-    else { bgm.pause(); btn.classList.remove("playing"); userMuted = true; }
+  if (bgmReady) {
+    const btn = $("#music-btn");
+    if (bgmPlaying()) { bgmPause(); btn.classList.remove("playing"); userMuted = true; }
+    else { bgmPlay(); btn.classList.add("playing"); userMuted = false; }
     return;
   }
   userMuted = !userMuted;
@@ -2049,64 +2138,41 @@ $("#music-btn").addEventListener("click", () => {
   else { Chip.start(); $("#music-btn").classList.add("playing"); }
 });
 
-/* 启动 */
-/* BGM 加载：真机实测（微信 WebView）在「几乎整首缓冲完」之前不出声
-   —— canplay 与 canplaythrough 同时触发，触发时已缓冲 173s/220s，
-   所以「点击→出声」≈ 整首文件的下载耗时，唯一有效的杠杆是把文件变小。
-   为此：BGM 截成原曲 78.55s 起的 28.4 秒片段（首尾淡入淡出做循环），1.37MB → 119KB；
-   再把标题页用不到的主视觉照片、拉丁字体挪到后面加载，少抢带宽 */
-let bgmPrimed = 0;
-if (CONFIG.music) {
-  const bgm = $("#bgm");
-  bgm.preload = "auto";
-  bgm.src = CONFIG.music;
-  bgm.load();
-  const primeBgm = () => {
-    if (!CONFIG.music || bgm.dataset.fallback === "1") return;
-    if (bgm.networkState === 2 || bgm.readyState > 0) return;   // 2 = NETWORK_LOADING：已经在下了
-    bgmPrimed = performance.now();
-    bgm.load();
-  };
+/* 启动：马上开始整段预载第 1、2 段（点开就能响），并在第一次触摸时催一下加载 */
+if (bgmReady) {
+  bgmLoad(0, 0);
+  bgmLoad(1, 1 % CONFIG.music.length);
+  const primeBgm = () => bgmEls.forEach(el => {
+    if (el.readyState === 0 && el.networkState !== 2) el.load();   // 2 = 已经在下了
+  });
   document.addEventListener("touchstart", primeBgm, { once: true, passive: true });
   document.addEventListener("mousedown", primeBgm, { once: true });
-  /* 缓冲一够就自动续播，避免「点了开始但还没出声」时错过 */
-  bgm.addEventListener("canplay", () => {
-    if (gameStarted && !userMuted && bgm.paused) playBgm();
-  });
-  /* 音频加载失败（弱网/文件缺失/被拦截）：回退内置八音盒引擎，至少不会全程静音 */
-  bgm.addEventListener("error", () => {
-    if (bgm.dataset.fallback === "1") return;
-    bgm.dataset.fallback = "1";
-    CONFIG.music = "";
+  /* 任一段加载失败（弱网/文件缺失/被拦截）：回退内置八音盒引擎，至少不会全程静音 */
+  bgmEls.forEach(el => el.addEventListener("error", () => {
+    if (!bgmReady) return;
+    bgmReady = false;
+    bgmPause();
+    bgmEls.forEach(e => e.removeAttribute("src"));
     if (gameStarted && !userMuted) Chip.start();
     $("#music-btn").classList.toggle("playing", Chip.on);
-  });
-  /* ?debug=1：临时诊断浮层（看「出声时已缓冲」是否仍 ≈ 整首、以及「真正出声」耗时） */
+  }));
+  /* ?debug=1：临时诊断浮层（段号／本段缓冲进度／换段次数／交接对齐误差／起播耗时）
+     「对齐误差」是下一段起播时比理想位置早了(+)或晚了(−)多少毫秒，越接近 0 越听不出接缝 */
   if (/[?&]debug=1/.test(location.search)) {
     const box = document.createElement("div");
     box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:999;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.6 monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none";
     document.body.appendChild(box);
-    const t0 = performance.now();
-    let cyAt = 0, tapAt = 0, playAt = 0, r4At = 0, bufAtTap = "", netAtTap = "", bufAtPlay = "";
-    const bufNow = () => bgm.buffered.length ? bgm.buffered.end(0) : 0;
-    bgm.addEventListener("canplay", () => { if (!cyAt) cyAt = performance.now() - t0; });
-    bgm.addEventListener("canplaythrough", () => { if (!r4At) r4At = performance.now() - t0; });
-    $("#btn-start").addEventListener("click", () => {
-      tapAt = performance.now() - t0;
-      netAtTap = bgm.networkState;
-      bufAtTap = bufNow().toFixed(1);
-    });
+    let tapAt = 0, playAt = 0;
+    $("#btn-start").addEventListener("click", () => { tapAt = performance.now(); });
     setInterval(() => {
-      if (!playAt && !bgm.paused && bgm.currentTime > 0.05) {
-        playAt = performance.now() - t0;
-        bufAtPlay = bufNow().toFixed(1);
-      }
+      if (!playAt && bgmPlaying()) playAt = performance.now();
+      const el = bgmEls[Math.max(bgmSlot, 0)];
+      const buf = el.buffered.length ? el.buffered.end(0) : 0;
       box.textContent =
-        "net=" + bgm.networkState + " ready=" + bgm.readyState + " 已缓冲=" + bufNow().toFixed(1) + "s\n" +
-        "canplay=" + (cyAt ? Math.round(cyAt) + "ms" : "-") + " 出声时已缓冲=" + (bufAtPlay || "-") + "s\n" +
-        "够连续播放=" + (r4At ? Math.round(r4At) + "ms" : "-") + "\n" +
-        "点击=" + (tapAt ? Math.round(tapAt) + "ms" : "-") + " 点击前缓冲=" + (bufAtTap || "-") + "s net=" + (netAtTap === "" ? "-" : netAtTap) + "\n" +
-        "真正出声=" + (playAt ? Math.round(playAt) + "ms" : "-");
+        "段=" + (bgmCur + 1) + "/" + CONFIG.music.length + " ready=" + el.readyState +
+        " 本段缓冲=" + buf.toFixed(1) + "/" + (el.duration || 0).toFixed(1) + "s\n" +
+        "已换段=" + bgmTurns + "  对齐误差=" + bgmSkew + "ms  起播=" +
+        (tapAt && playAt ? Math.round(playAt - tapAt) + "ms" : "-");
     }, 200);
   }
 }
